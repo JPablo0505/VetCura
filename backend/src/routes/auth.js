@@ -69,6 +69,11 @@ function buildAuthRoutes(db) {
           ? db.prepare('SELECT id, email, role, display_name FROM users WHERE email = ?').get(email)
           : null;
         if (existing) {
+          // Never attach a Google identity to a non-owner account:
+          // reject before persisting anything.
+          if (existing.role !== 'owner') {
+            throw apiError('forbidden', 'Google Sign-In is restricted to pet owners', 403);
+          }
           db.prepare('UPDATE users SET google_sub = ? WHERE id = ?').run(info.sub, existing.id);
           user = existing;
         } else {

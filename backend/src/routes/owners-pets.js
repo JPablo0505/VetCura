@@ -8,6 +8,9 @@ const STAFF = ['admin', 'vet', 'staff'];
 
 const ownerSchema = z.object({
   display_name: z.string().min(1).max(255),
+  // Real email enables later Google Sign-In linking (matched by address).
+  // Without it the owner shell can only be claimed once staff sets an email.
+  email: z.string().email().max(255).nullable().optional(),
   phone: z.string().max(50).optional(),
   address: z.string().max(500).optional(),
 });
@@ -59,15 +62,25 @@ function buildOwnerPetRoutes(db) {
   router.post('/owners', requireRole('admin', 'staff'), (req, res, next) => {
     try {
       const body = validate(ownerSchema, req.body);
-      const created = db
-        .prepare('INSERT INTO users (email, role, display_name) VALUES (?, ?, ?)')
-        .run(`owner-${Date.now()}@placeholder.local`, 'owner', body.display_name);
+      const email = body.email ? body.email.toLowerCase() : `owner-${Date.now()}@placeholder.local`;
+      let userId;
+      try {
+        const created = db
+          .prepare('INSERT INTO users (email, role, display_name) VALUES (?, ?, ?)')
+          .run(email, 'owner', body.display_name);
+        userId = Number(created.lastInsertRowid);
+      } catch (e) {
+        if (e && e.code === 'ERR_SQLITE_ERROR' && /UNIQUE/i.test(e.message)) {
+          throw apiError('conflict', 'That email is already registered', 409);
+        }
+        throw e;
+      }
       db.prepare('INSERT INTO owners (user_id, phone, address) VALUES (?, ?, ?)').run(
-        Number(created.lastInsertRowid),
+        userId,
         body.phone || null,
         body.address || null,
       );
-      res.status(201).json({ owner: { user_id: Number(created.lastInsertRowid), ...body } });
+      res.status(201).json({ owner: { user_id: userId, ...body, email } });
     } catch (err) {
       next(err);
     }

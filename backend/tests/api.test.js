@@ -118,6 +118,27 @@ describe('pets and owner scoping', () => {
     const r = await api('POST', '/pets', global.tokens.admin, { owner_id: 9999, name: '', species: 'dog' });
     assert.equal(r.status, 400);
   });
+
+  it('creates owners with a real email and rejects duplicates with 409', async () => {
+    const created = await api('POST', '/owners', global.tokens.admin, {
+      display_name: 'Nueva Propietaria',
+      email: 'nueva@example.com',
+      phone: '+34 600 999 888',
+    });
+    assert.equal(created.status, 201);
+    assert.equal(created.json.owner.email, 'nueva@example.com');
+    const dupe = await api('POST', '/owners', global.tokens.admin, {
+      display_name: 'Duplicada',
+      email: 'nueva@example.com',
+    });
+    assert.equal(dupe.status, 409);
+    assert.equal(dupe.json.error.code, 'conflict');
+    const bad = await api('POST', '/owners', global.tokens.admin, {
+      display_name: 'Mala',
+      email: 'not-an-email',
+    });
+    assert.equal(bad.status, 400);
+  });
 });
 
 describe('appointments', () => {
