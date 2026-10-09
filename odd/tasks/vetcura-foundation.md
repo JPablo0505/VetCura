@@ -78,15 +78,25 @@ OUT OF THIS FEATURE: real Google OAuth credentials, Figma import, APK binary
   via failing import before implementation where practical; exceptions for
   docs/panel explained in handoff.
 
-## Checklist
+## Checklist (observed outcomes)
 
-- [ ] 1. Repo baseline: git init, .gitignore, docs skeleton
-- [ ] 2. Discovery docs: VISUAL-SPEC.md, ASSET-INVENTORY.md, ARCHITECTURE.md
-- [ ] 3. Backend scaffold + migrations + seed
-- [ ] 4. Auth + RBAC (JWT, Google 501 without credentials)
-- [ ] 5. Domain routes: owners, pets, vets, appointments, consultations,
+- [x] 1. Repo baseline: git init, .gitignore, docs skeleton (commit 9f344db)
+- [x] 2. Discovery docs: VISUAL-SPEC.md, ASSET-INVENTORY.md, ARCHITECTURE.md
+- [x] 3. Backend scaffold + migrations + seed (clean-DB verified)
+- [x] 4. Auth + RBAC (JWT, Google 501 without credentials; 15/15 tests)
+- [x] 5. Domain routes: owners, pets, vets, appointments, consultations,
       vaccinations, medications, invoices (server-side totals)
-- [ ] 6. Backend tests green + clean-DB migration check
-- [ ] 7. Web panel built against real API
-- [ ] 8. Android source + JDK blocker documented
-- [ ] 9. Integration verification + final docs + delivery record
+- [x] 6. Backend tests green (15/15) + clean-DB migration check
+- [x] 7. Web panel built (`web/dist`) against real API (live :3101 check)
+- [x] 8. Android source + JDK blocker documented (NOT compiled, no APK)
+- [x] 9. Integration verification + final docs + delivery record
+
+## Verification evidence
+
+- `backend: npm test` → 15 pass / 0 fail.
+- Clean DB: migrate + seed → 5 users, 2 pets, 3 vaccinations, 1 issued
+  invoice (5500/550/6050).
+- Live :3101: admin login OK; dashboard revenue_cents=6050,
+  attended=1, pending=0.
+- `web: npm run build` → dist/index.html + assets, OK.
+- Android: structural readback only (no JDK); no build claimed.
