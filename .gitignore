@@ -1,0 +1,11 @@
+node_modules/
+dist/
+build/
+*.db
+*.db-journal
+.env
+coverage/
+.gradle/
+local.properties
+*.apk
+.DS_Store
