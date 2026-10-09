@@ -1,0 +1,95 @@
+/* VetCura staff panel tokens (observed in Mockups/, see docs/VISUAL-SPEC.md). */
+:root {
+  --primary: #00685f;
+  --primary-dark: #006947;
+  --secondary: #fd761a;
+  --ink: #111c2d;
+  --muted: #6d7a77;
+  --bg: #f9f9ff;
+  --chip: #f0f3ff;
+  --info: #e7eeff;
+  --danger: #ba1a1a;
+  --radius: 14px;
+  --shadow: 0 1px 3px rgb(17 28 45 / 0.08), 0 4px 12px rgb(17 28 45 / 0.06);
+  --font-head: 'Nunito', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+}
+h1, h2, h3 { font-family: var(--font-head); margin: 0 0 0.5rem; }
+
+.layout { display: flex; min-height: 100vh; }
+.sidebar {
+  width: 232px;
+  background: var(--ink);
+  color: #fff;
+  padding: 1.25rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.sidebar .brand { font-family: var(--font-head); font-weight: 800; font-size: 1.3rem; margin-bottom: 1.5rem; }
+.sidebar .brand span { color: var(--secondary); }
+.sidebar a {
+  color: #d7dee8;
+  text-decoration: none;
+  padding: 0.6rem 0.8rem;
+  border-radius: 12px;
+  font-weight: 600;
+}
+.sidebar a.active, .sidebar a:hover { background: rgb(255 255 255 / 0.12); color: #fff; }
+.sidebar .logout { margin-top: auto; background: none; border: 0; color: #d7dee8; cursor: pointer; text-align: left; padding: 0.6rem 0.8rem; font: inherit; font-weight: 600; }
+.content { flex: 1; padding: 2rem; max-width: 1100px; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 1rem 0 2rem; }
+.card {
+  background: #fff;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.25rem;
+}
+.card .kpi { font-family: var(--font-head); font-size: 1.8rem; font-weight: 800; }
+.card .label { color: var(--muted); font-size: 0.9rem; }
+
+table { width: 100%; border-collapse: collapse; background: #fff; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+th, td { text-align: left; padding: 0.7rem 0.9rem; border-bottom: 1px solid #edf0f7; font-size: 0.92rem; }
+th { background: var(--chip); font-family: var(--font-head); }
+
+.badge { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; background: var(--chip); }
+.badge.ok { background: #d9f5e7; color: #0c6b3c; }
+.badge.warn { background: #ffe9d2; color: #9d4300; }
+.badge.bad { background: #ffdAD6; color: var(--danger); }
+
+form.inline { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 1rem 0; }
+input, select, textarea {
+  font: inherit;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #cfd6e4;
+  border-radius: 12px;
+  background: #fff;
+}
+button {
+  font: inherit;
+  font-weight: 700;
+  background: var(--primary);
+  color: #fff;
+  border: 0;
+  border-radius: 12px;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+}
+button.secondary { background: #fff; color: var(--primary); border: 1px solid var(--primary); }
+button:disabled { opacity: 0.55; cursor: default; }
+.alert { padding: 0.8rem 1rem; border-radius: 12px; margin: 1rem 0; }
+.alert.error { background: #ffdAD6; color: var(--danger); }
+.alert.info { background: var(--info); color: var(--ink); }
+.empty { color: var(--muted); padding: 1.5rem; text-align: center; }
+.login-wrap { max-width: 380px; margin: 12vh auto; background: #fff; padding: 2rem; border-radius: 16px; box-shadow: var(--shadow); }
+.login-wrap input { width: 100%; margin-bottom: 0.7rem; }
+.login-wrap button { width: 100%; }
