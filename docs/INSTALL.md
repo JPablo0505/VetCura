@@ -31,10 +31,18 @@ npm run dev            # dev server :5173, API at VITE_API_URL (default http://l
 Login with a staff account from the seed
 (`admin@vetcura.local` / `VetCura123!`).
 
+Owner onboarding: staff create the owner with their REAL email
+(`POST /owners {display_name, email}`); the owner then signs in with
+Google using that same address and the backend links the Google identity
+to the existing owner record. Placeholder emails (`...@placeholder.local`)
+cannot be claimed until staff set a real address.
+
 ## Android
 
-Blocked until JDK 17 + SDK exist: `cd android && ./gradlew
-assembleDebug`. Emulator API URL is `http://10.0.2.2:3001`
+Full manual setup lives in `android/README.md` (JDK 17 + SDK +
+`local.properties` + wrapper jar generation + `assembleDebug`).
+Still blocked in this environment: no JDK/SDK/gradle present
+(re-verified 2026-10-09). Emulator API URL is `http://10.0.2.2:3001`
 (`API_URL` BuildConfig). No APK is provided with this delivery.
 
 ## Permissions & data safety

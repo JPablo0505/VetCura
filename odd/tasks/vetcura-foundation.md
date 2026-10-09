@@ -100,3 +100,20 @@ OUT OF THIS FEATURE: real Google OAuth credentials, Figma import, APK binary
   attended=1, pending=0.
 - `web: npm run build` → dist/index.html + assets, OK.
 - Android: structural readback only (no JDK); no build claimed.
+
+## Closure phase (2026-10-09) — observed outcomes
+
+- Re-ran from current tree: backend **16/16** (new owner-email
+  409/400 test), web build OK, git tree clean, no `.env` in repo.
+- Android↔backend contract readback: all paths match; alerts carry
+  `pet_id` from `vaccinations.*`.
+- Security readback: per-request RBAC + owner isolation intact.
+- Fixed (code errors, not blockers): Google link-then-reject on
+  non-owners → reject-before-write; Android alerts matched by wrong id
+  → `pet_id`; `POST /owners` accepts real email (409/400) enabling
+  Google linking by address.
+- Confirmed still blocked (external): JDK/SDK/Gradle absent (no
+  `assembleDebug`, no APK); wrapper jar has no standalone URL (404
+  verified, manual `gradle wrapper` documented); Google e2e needs OAuth
+  client; Figma URL still a placeholder (Mockups provisional).
+- Full table: `docs/DELIVERY.md` → Closure validation.

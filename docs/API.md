@@ -14,8 +14,10 @@ Errors: `{ error: { code, message } }` with 400 validation_error,
 
 ## Owners & pets
 
-- `GET /owners` (staff) · `POST /owners {display_name, phone?, address?}`
-  (admin/staff) · `GET /owners/:id` (self or staff, includes pets).
+- `GET /owners` (staff) · `POST /owners {display_name, email?,
+  phone?, address?}` (admin/staff; real email enables later Google
+  linking by address, 409 on duplicate) ·
+  `GET /owners/:id` (self or staff, includes pets).
 - `GET /pets` (owners: own only) · `POST /pets` (staff) ·
   `GET /pets/:id` (+ vaccinations) · `PATCH /pets/:id` (staff).
 

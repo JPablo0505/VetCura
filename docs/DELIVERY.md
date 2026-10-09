@@ -45,3 +45,51 @@
   Mockups (discrepancy vs brief `#0D9488/#0F766E/#1E293B` recorded in
   `docs/VISUAL-SPEC.md`, assets win). Nunito/Inter roles kept.
 - Original SVGs untouched; no emoji icons; photos stay embedded.
+
+## Closure validation (2026-10-09, repo at 6 work-unit commits + fixes)
+
+Re-ran every applicable check from the current tree. No working
+functionality was removed; no stack was changed; no secrets added
+(`.env` search: none; only `backend/.env.example`).
+
+| # | Verification | Command | Observed result | Final state |
+| - | ------------ | ------- | --------------- | ----------- |
+| 1 | Backend suite (incl. new owner-email 409 test) | `backend: npm test` | 16 pass / 0 fail | ✅ PASS |
+| 2 | Web production build | `web: npm run build` | `dist/index.html` + assets, built in ~0.5 s | ✅ PASS |
+| 3 | Git state | `git log`, `git status --short` | 9 commits, clean tree | ✅ PASS |
+| 4 | No secrets in repo | recursive `.env` search | no matches; only `.env.example` | ✅ PASS |
+| 5 | Android↔backend contract | readback `Api.kt` vs routes | paths match (`auth/login`, `pets`, `pets/{id}[/history]`, `appointments`, `vaccinations/alerts`, `invoices[/…]`); `pet_id` present in alerts payload (from `vaccinations.*`) | ✅ PASS (structural) |
+| 6 | Endpoint/RBAC review | readback all routes | per-request enforcement intact; owner isolation on pets/appointments/invoices/alerts/history; staff-only mutations; billing server-side | ✅ PASS (2 fixes, see below) |
+| 7 | JDK / SDK / Gradle presence | `java -version`, env vars, SDK dir, `gradle --version` | all absent | ⛔ EXTERNAL BLOCKER |
+| 8 | `assembleDebug` / APK | — (not runnable without 7) | not executed, no APK claimed | ⛔ EXTERNAL BLOCKER |
+| 9 | Gradle wrapper jar fetch | `Invoke-WebRequest` raw GitHub `gradle-wrapper.jar` | 404 — Gradle publishes no standalone jar URL | ⛔ EXTERNAL BLOCKER (manual step documented) |
+| 10 | Google Sign-In e2e | — (needs OAuth client) | API 501 path covered by test; email login unaffected | ⛔ EXTERNAL BLOCKER |
+| 11 | Figma fidelity | — (link was a placeholder) | Mockups kept as provisional reference; no URL invented | ⛔ EXTERNAL BLOCKER |
+
+Code errors found and fixed in this phase (not blockers):
+
+- Google linking attached `google_sub` to non-owner accounts before
+  rejecting them (403 after write). Now rejects before any write
+  (`backend/src/routes/auth.js`).
+- Android matched vaccination alerts to pets by vaccination `id`
+  instead of `pet_id` — wrong cards would show wrong alerts. Now
+  matches `alert.pet_id == pet.id` (`Api.kt`, `Screens.kt`); also
+  removed a dead `list` state variable.
+- Owner onboarding gap: staff-created owners had placeholder emails
+  only, so Google linking by address could never match. `POST /owners`
+  now accepts an optional real `email` (409 on duplicate, 400 on
+  invalid); covered by a new test.
+
+Security notes (reviewed, no change required for v0.1.0): bcrypt-hashed
+staff passwords; JWT 12 h expiry via `JWT_SECRET` env (dev default is
+documented as non-production); `express.json({limit:'1mb'})`;
+length-capped zod schemas on every input; invoice totals recomputed in
+transactions; no billing math on clients. Hardening follow-ups (not
+defects): login rate-limiting, refresh-token rotation, Postgres path.
+
+Pending manual interventions (nothing else blocks delivery):
+
+1. JDK 17 + Android SDK + wrapper jar → `./gradlew assembleDebug`
+   (exact steps in `android/README.md`).
+2. Real Figma URL + viewer access → pixel-fidelity pass.
+3. `GOOGLE_CLIENT_ID` + Android OAuth client (SHA-1) → Google e2e.
