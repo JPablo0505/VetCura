@@ -74,7 +74,9 @@ fun PetsDashboardScreen(api: VetCuraApi, auth: String, onPet: (Int) -> Unit) {
             state = try {
                 val pets = api.pets("Bearer $auth").pets
                 val alerts = api.alerts("Bearer $auth").alerts
-                UiState.Pets(pets.map { it to alerts.filter { a -> a.id == it.id } })
+                // Alerts carry the vaccination id in `id`; match them to
+                // pets through `pet_id` (present in the backend payload).
+                UiState.Pets(pets.map { it to alerts.filter { a -> a.pet_id == it.id } })
             } catch (e: Exception) {
                 UiState.Error("No se pudieron cargar tus mascotas: ${e.message}")
             }
@@ -105,7 +107,6 @@ fun PetsDashboardScreen(api: VetCuraApi, auth: String, onPet: (Int) -> Unit) {
 
 @Composable
 fun AppointmentsScreen(api: VetCuraApi, auth: String) {
-    var list by remember { mutableStateOf<com.vetcura.app.data.Appointment?>(null) }
     var items by remember { mutableStateOf<List<com.vetcura.app.data.Appointment>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var petId by remember { mutableStateOf("") }

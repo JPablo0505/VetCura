@@ -71,7 +71,7 @@ data class Invoice(
 )
 data class InvoicesResponse(val invoices: List<Invoice>)
 data class InvoiceResponse(val invoice: Invoice)
-data class Alert(val id: Int, val pet_name: String, val vaccine: String, val due_date: String, val overdue: Boolean)
+data class Alert(val id: Int, val pet_id: Int, val pet_name: String, val vaccine: String, val due_date: String, val overdue: Boolean)
 data class AlertsResponse(val alerts: List<Alert>)
 
 interface VetCuraApi {

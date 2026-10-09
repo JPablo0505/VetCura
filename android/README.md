@@ -6,23 +6,32 @@ Kotlin + Jetpack Compose + Retrofit + DataStore + Navigation-Compose.
 Rationale: official native stack, declarative UI matching the mockup
 cards, Retrofit maps 1:1 to the backend REST contract.
 
-## Build status: BLOCKED — no JDK in this environment
+## Build status: BLOCKED — no JDK, no Android SDK, no wrapper jar
 
-`java -version` is not recognized on this machine, so neither
-`./gradlew assembleDebug` nor any compilation/verification was possible.
-Nothing below is claimed as built.
+Verified 2026-10-09 in this environment: `java`, `gradle`, `ANDROID_HOME`,
+`ANDROID_SDK_ROOT` and `%LOCALAPPDATA%\Android` are all absent, so neither
+`assembleDebug` nor any compilation was executed. Nothing below is claimed
+as built. The wrapper jar is intentionally not committed (Gradle
+publishes no standalone jar URL — the 404 on the raw GitHub path was
+verified); generate it once with any local Gradle ≥ 8 (`gradle wrapper`)
+or Android Studio.
 
-To reproduce the build once a JDK is available:
+Manual setup (precise steps, ~15 min + downloads):
 
-```bash
-cd android
-# requires JDK 17 + Android SDK (compileSdk 34)
-./gradlew assembleDebug
-```
+1. Install JDK 17 (e.g. Temurin 17) and set `JAVA_HOME`.
+2. Install Android SDK cmdline-tools; accept licenses; then install
+   `platform-tools`, `platforms;android-34`, `build-tools;34.0.0`.
+3. Copy `local.properties.example` to `local.properties` (gitignored)
+   and set `sdk.dir` to your SDK path.
+4. From any Gradle ≥ 8 install run `gradle wrapper --gradle-version 8.7`
+   inside `android/` to produce `gradle/wrapper/gradle-wrapper.jar`
+   (first `./gradlew` run then downloads the 8.7 distribution).
+5. `cd android && ./gradlew assembleDebug` (Windows: `gradlew.bat
+   assembleDebug`).
 
-Exact intervention needed: install JDK 17 and the Android SDK, or provide
-a CI runner with them. The expected artifact is
-`android/app/build/outputs/apk/debug/app-debug.apk`.
+Expected artifact: `android/app/build/outputs/apk/debug/app-debug.apk`.
+Install it with `adb install` against an emulator running API 34 with the
+backend reachable at `http://10.0.2.2:3001` (`API_URL` BuildConfig).
 
 ## Structure
 
