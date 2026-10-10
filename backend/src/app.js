@@ -9,7 +9,7 @@ const { buildClinicalRoutes } = require('./routes/clinical');
 const { buildCatalogRoutes } = require('./routes/catalog');
 const { buildInvoiceRoutes } = require('./routes/invoices');
 
-function createApp(db) {
+function createApp(db, options = {}) {
   const app = express();
   // The web panel (Vite :5173) and the API (:3001) are different origins
   // in local dev, so cross-origin requests must be allowed explicitly.
@@ -19,7 +19,7 @@ function createApp(db) {
 
   app.get('/health', (req, res) => res.json({ ok: true }));
 
-  app.use('/auth', buildAuthRoutes(db));
+  app.use('/auth', buildAuthRoutes(db, options));
   const api = express.Router();
   api.use(buildOwnerPetRoutes(db));
   api.use(buildAppointmentRoutes(db));

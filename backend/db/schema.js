@@ -98,6 +98,81 @@ const MIGRATIONS = [
     unit_price_cents INTEGER NOT NULL CHECK (unit_price_cents >= 0),
     line_total_cents INTEGER NOT NULL)
   ;`,
+  `CREATE TABLE refresh_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    expires_at TEXT NOT NULL,
+    revoked_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')))
+  ;
+  CREATE INDEX idx_refresh_tokens_user ON refresh_tokens(user_id)
+  ;
+  CREATE TABLE notification_prefs (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    push_enabled INTEGER NOT NULL DEFAULT 1,
+    email_enabled INTEGER NOT NULL DEFAULT 1,
+    appointment_reminders INTEGER NOT NULL DEFAULT 1,
+    vaccination_reminders INTEGER NOT NULL DEFAULT 1,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')))
+  ;
+  CREATE TABLE devices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    platform TEXT NOT NULL DEFAULT 'android',
+    fcm_token TEXT NOT NULL UNIQUE,
+    last_seen TEXT NOT NULL DEFAULT (datetime('now')),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')))
+  ;
+  CREATE INDEX idx_devices_user ON devices(user_id)
+  ;
+  CREATE TABLE notification_queue (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    idempotency_key TEXT NOT NULL UNIQUE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending'
+      CHECK (status IN ('pending','sent','failed','cancelled')),
+    attempts INTEGER NOT NULL DEFAULT 0,
+    scheduled_for TEXT NOT NULL,
+    sent_at TEXT,
+    last_error TEXT)
+  ;
+  CREATE INDEX idx_notification_queue_due ON notification_queue(status, scheduled_for)
+  ;
+  CREATE TABLE audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    actor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    action TEXT NOT NULL,
+    target_type TEXT,
+    target_id INTEGER,
+    meta TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')))
+  ;
+  CREATE INDEX idx_audit_log_target ON audit_log(target_type, target_id)
+  ;
+  CREATE TABLE pet_weight_measurements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pet_id INTEGER NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
+    weight_kg REAL NOT NULL CHECK (weight_kg > 0),
+    measured_at TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'manual',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')))
+  ;
+  CREATE INDEX idx_weight_pet ON pet_weight_measurements(pet_id, measured_at)
+  ;
+  ALTER TABLE owners ADD COLUMN photo_path TEXT
+  ;
+  ALTER TABLE owners ADD COLUMN updated_at TEXT
+  ;
+  ALTER TABLE pets ADD COLUMN photo_path TEXT
+  ;
+  ALTER TABLE pets ADD COLUMN updated_at TEXT
+  ;
+  ALTER TABLE users ADD COLUMN email_verified_at TEXT
+  ;`,
 ];
 
 // NOTE: keep this SQL free of ';' inside string literals or comments:
