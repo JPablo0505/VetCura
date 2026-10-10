@@ -1,3 +1,5 @@
+// Local .env first (gitignored); real environments inject variables directly.
+require('dotenv').config();
 const { openDatabase } = require('../db');
 const { createApp } = require('../src/app');
 

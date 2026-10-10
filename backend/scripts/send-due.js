@@ -2,6 +2,7 @@
 //   */30 * * * * cd /srv/vetcura/backend && DATABASE_PATH=./data/vetcura.db node scripts/send-due.js
 // Reconciles reminders with current data, then delivers due items.
 // Exit 0 with a JSON summary; providers report their own honest errors.
+require('dotenv').config();
 const { openDatabase } = require('../db');
 const { reconcile, processDue, buildEmailProvider, buildPushProvider } = require('../src/lib/notify');
 

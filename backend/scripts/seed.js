@@ -1,5 +1,6 @@
 // Controlled seed data for local development and demos.
 // Credentials are development-only placeholders, never production secrets.
+require('dotenv').config();
 const bcrypt = require('bcryptjs');
 const { openDatabase } = require('../db');
 const { runInTransaction } = require('../src/lib/transaction');
