@@ -1,65 +1,126 @@
 import { api } from '../api.js';
+import { ICONS } from '../main.js';
 
-const LABEL = {
-  scheduled: ['Programada', ''],
-  checked_in: ['En consulta', 'warn'],
-  done: ['Atendida', 'ok'],
-  cancelled: ['Cancelada', 'bad'],
-  no_show: ['No asistió', 'bad'],
+const STATUS_LABEL = {
+  scheduled: 'Pendiente',
+  checked_in: 'En consulta',
+  done: 'Atendida',
+  cancelled: 'Cancelada',
+  no_show: 'No asistió',
 };
 
-function weekRange(offsetWeeks) {
-  const now = new Date();
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - ((now.getDay() + 6) % 7) + offsetWeeks * 7);
+// What the next legal click does per status (subset of the backend machine).
+const NEXT = { scheduled: 'checked_in', checked_in: 'done' };
+
+function dayBounds(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const end = new Date(d);
+  end.setDate(d.getDate() + 1);
+  return { from: d.toISOString(), to: end.toISOString() };
+}
+
+function rangeFor(mode, anchor) {
+  if (mode === 'day') return dayBounds(anchor);
+  const base = new Date(anchor);
+  const monday = new Date(base);
+  monday.setDate(base.getDate() - ((base.getDay() + 6) % 7));
   monday.setHours(0, 0, 0, 0);
-  const next = new Date(monday);
-  next.setDate(monday.getDate() + 7);
-  return { from: monday.toISOString(), to: next.toISOString(), monday };
+  const span = mode === 'month' ? 31 : 7;
+  const end = new Date(monday);
+  end.setDate(monday.getDate() + span);
+  return { from: monday.toISOString(), to: end.toISOString(), monday, span };
 }
 
 export async function AgendaView(root) {
-  let offset = 0;
+  let mode = 'week';
+  let anchor = new Date();
+
   async function render() {
-    const { from, to, monday } = weekRange(offset);
-    root.innerHTML = '<h1>Agenda</h1><p>Cargando citas…</p>';
+    const { from, to, monday, span } = rangeFor(mode, anchor);
+    const title =
+      mode === 'day'
+        ? anchor.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })
+        : `Semana del ${monday.toLocaleDateString('es-CL', { day: 'numeric', month: 'long' })}`;
+    root.innerHTML = '<h1>Agenda Semanal</h1><p>Cargando citas…</p>';
     try {
       const [list, vets] = await Promise.all([
         api(`/appointments?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
         api('/vets'),
       ]);
-      const rows = list.appointments
-        .map((a) => {
-          const [label, cls] = LABEL[a.status] || [a.status, ''];
-          return `<tr><td>${new Date(a.starts_at).toLocaleString()}</td><td>${a.pet_name}</td><td>${a.reason || '—'}</td><td><span class="badge ${cls}">${label}</span></td></tr>`;
-        })
-        .join('');
+      const byDay = new Map();
+      for (const a of list.appointments) {
+        const key = new Date(a.starts_at).toLocaleDateString('es-CL');
+        if (!byDay.has(key)) byDay.set(key, []);
+        byDay.get(key).push(a);
+      }
+      const days = [];
+      const start = mode === 'day' ? new Date(anchor).setHours(0, 0, 0, 0) : monday.getTime();
+      const n = mode === 'day' ? 1 : span;
+      for (let i = 0; i < n; i += 1) {
+        const d = new Date(start + i * 864e5);
+        const key = d.toLocaleDateString('es-CL');
+        const chips = (byDay.get(key) || [])
+          .map((a) => {
+            const next = NEXT[a.status];
+            return `<button class="chip-appt st-${a.status}" data-id="${a.id}" data-next="${next || ''}" title="${next ? `Avanzar a ${STATUS_LABEL[next]} (clic)` : STATUS_LABEL[a.status] || a.status}">
+              <strong>${a.pet_name}</strong><small>${new Date(a.starts_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })} · ${a.reason || 'Sin motivo'}</small>
+              <small>${STATUS_LABEL[a.status] || a.status}${next ? ' →' : ''}</small>
+            </button>`;
+          })
+          .join('');
+        days.push(`<div class="day-col"><h4>${d.toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric' })}</h4><div class="count">${(byDay.get(key) || []).length} citas</div>${chips || '<div class="empty">—</div>'}</div>`);
+      }
       const vetOptions = vets.vets.map((v) => `<option value="${v.id}">${v.display_name}</option>`).join('');
       root.innerHTML = `
-        <h1>Agenda — semana del ${monday.toLocaleDateString()}</h1>
-        <form class="inline" id="nav">
-          <button type="button" data-nav="-1" class="secondary">‹ Anterior</button>
-          <button type="button" data-nav="1" class="secondary">Siguiente ›</button>
-        </form>
-        ${
-          rows
-            ? `<table><thead><tr><th>Inicio</th><th>Mascota</th><th>Motivo</th><th>Estado</th></tr></thead><tbody>${rows}</tbody></table>`
-            : `<div class="empty">No hay citas esta semana.</div>`
-        }
-        <h2>Nueva cita</h2>
-        <form class="inline" id="create">
-          <input name="pet_id" type="number" min="1" placeholder="ID mascota" required />
-          <select name="vet_user_id"><option value="">Sin asignar</option>${vetOptions}</select>
-          <input name="starts_at" type="datetime-local" required />
-          <input name="ends_at" type="datetime-local" required />
-          <input name="reason" placeholder="Motivo" />
-          <button>Crear</button>
-        </form>
+        <h1>Agenda Semanal</h1>
+        <p class="subtitle">${list.appointments.length} citas asignadas en el período · clic en una cita pendiente para avanzar su estado.</p>
+        <div class="view-tabs" id="modes">
+          ${['day', 'week', 'month'].map((m) => `<button data-mode="${m}" class="${m === mode ? 'active' : ''}">${m === 'day' ? 'Día' : m === 'week' ? 'Semana' : 'Mes'}</button>`).join('')}
+        </div>
+        <p><strong>${title}</strong>
+          <button class="secondary" id="prev">‹</button>
+          <button class="secondary" id="next">›</button>
+          <button class="secondary" id="today">Hoy</button>
+          <button class="accent" id="toggle-form">${ICONS.plus} Agendar Nueva Cita</button></p>
+        <p><span class="badge">Pendiente</span> <span class="badge warn">En consulta</span> <span class="badge ok">Atendida</span> <span class="badge bad">Cancelada / No asistió</span></p>
+        <div class="week-grid">${days.join('')}</div>
+        <div id="form-wrap" style="display:none">
+          <h2>Nueva cita</h2>
+          <form class="inline" id="create">
+            <input name="pet_id" type="number" min="1" placeholder="ID mascota" required />
+            <select name="vet_user_id"><option value="">Sin asignar</option>${vetOptions}</select>
+            <input name="starts_at" type="datetime-local" required />
+            <input name="ends_at" type="datetime-local" required />
+            <input name="reason" placeholder="Motivo" />
+            <button>Crear</button>
+          </form>
+        </div>
         <div id="msg"></div>`;
-      root.querySelectorAll('#nav button').forEach((b) => {
-        b.onclick = () => {
-          offset += Number(b.dataset.nav);
-          render();
+      const shift = mode === 'month' ? 31 : mode === 'day' ? 1 : 7;
+      root.querySelector('#prev').onclick = () => { anchor = new Date(anchor.getTime() - shift * 864e5); render(); };
+      root.querySelector('#next').onclick = () => { anchor = new Date(anchor.getTime() + shift * 864e5); render(); };
+      root.querySelector('#today').onclick = () => { anchor = new Date(); render(); };
+      root.querySelectorAll('#modes button').forEach((b) => {
+        b.onclick = () => { mode = b.dataset.mode; render(); };
+      });
+      root.querySelector('#toggle-form').onclick = () => {
+        const w = root.querySelector('#form-wrap');
+        w.style.display = w.style.display === 'none' ? 'block' : 'none';
+      };
+      root.querySelectorAll('.chip-appt').forEach((c) => {
+        c.onclick = async () => {
+          if (!c.dataset.next) return;
+          const msg = root.querySelector('#msg');
+          try {
+            await api(`/appointments/${c.dataset.id}/status`, {
+              method: 'PATCH',
+              body: { status: c.dataset.next },
+            });
+            render();
+          } catch (err) {
+            msg.innerHTML = `<div class="alert error">${err.message}</div>`;
+          }
         };
       });
       root.querySelector('#create').onsubmit = async (e) => {
@@ -84,7 +145,7 @@ export async function AgendaView(root) {
         }
       };
     } catch (e) {
-      root.innerHTML = `<h1>Agenda</h1><div class="alert error">No se pudo cargar la agenda: ${e.message}</div>`;
+      root.innerHTML = `<h1>Agenda Semanal</h1><div class="alert error">No se pudo cargar la agenda: ${e.message}</div>`;
     }
   }
   await render();

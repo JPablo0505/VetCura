@@ -10,8 +10,26 @@ export function setToken(t) {
   else localStorage.removeItem('vetcura_token');
 }
 
-export function euros(cents) {
-  return `${(cents / 100).toFixed(2)} €`;
+// Chilean pesos without decimals, as in the mockups ($3.485.000).
+export function clp(cents) {
+  return new Intl.NumberFormat('es-CL', {
+    style: 'currency',
+    currency: 'CLP',
+    maximumFractionDigits: 0,
+  }).format(Math.round(cents / 100));
+}
+
+// Deterministic decorative avatar from the extracted mockup photos.
+// Only pet-only shots are used (pet-1/-7/-8/-11); staff portraits from
+// the mockups are never shown as patients. Cats get the siamese shot.
+const PET_PHOTOS = [1, 7, 11];
+export function petPhoto(id, species) {
+  if ((species || '').toLowerCase().startsWith('cat')) return '/img/pet-8.jpg';
+  return `/img/pet-${PET_PHOTOS[Number(id) % PET_PHOTOS.length]}.jpg`;
+}
+
+export async function currentUser() {
+  return api('/auth/me');
 }
 
 export async function api(path, { method = 'GET', body } = {}) {
