@@ -7,7 +7,7 @@
     "start": "node src/server.js",
     "migrate": "node scripts/migrate.js",
     "seed": "node scripts/seed.js",
-    "test": "node --test tests/api.test.js"
+    "test": "node --test tests/api.test.js tests/auth-v2.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

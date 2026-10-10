@@ -41,7 +41,10 @@ async function verifyGoogleToken(idToken, verifyFn) {
       name: payload.name ? String(payload.name) : '',
     };
   } catch (err) {
-    if (err && (err.code === 'invalid_google_token' || err.code === 'google_unconfigured')) throw err;
+    if (err && (err.code === 'invalid_google_token' || err.code === 'google_unconfigured')) {
+      if (err.code === 'invalid_google_token' && !err.status) err.status = 401;
+      throw err;
+    }
     // Never leak provider internals (expired vs malformed look identical).
     throw apiError('invalid_google_token', 'Google token rejected', 401);
   }
