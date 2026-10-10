@@ -89,7 +89,10 @@ fun PetsDashboardScreen(api: VetCuraApi, auth: String, onPet: (Int) -> Unit) {
             if (s.items.isEmpty()) {
                 Text("Aún no tienes mascotas registradas.", Modifier.padding(24.dp))
             } else {
-                LazyColumn(Modifier.fillMaxSize().padding(16.dp), Arrangement.spacedBy(12.dp)) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
                     items(s.items) { (pet, _) ->
                         Card(onClick = { onPet(pet.id) }, Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(16.dp)) {
@@ -102,6 +105,7 @@ fun PetsDashboardScreen(api: VetCuraApi, auth: String, onPet: (Int) -> Unit) {
                 }
             }
         }
+        else -> Unit
     }
 }
 
@@ -122,7 +126,10 @@ fun AppointmentsScreen(api: VetCuraApi, auth: String) {
             }
         }
     }
-    LazyColumn(Modifier.fillMaxSize().padding(16.dp), Arrangement.spacedBy(12.dp)) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         item {
             Text("Solicitar cita", style = MaterialTheme.typography.titleLarge)
             OutlinedTextField(petId, { petId = it }, label = { Text("ID de mascota") })
@@ -175,7 +182,10 @@ fun HistoryScreen(api: VetCuraApi, auth: String, petId: Int) {
         UiState.Loading -> CircularProgressIndicator(Modifier.padding(24.dp))
         is UiState.Error -> Text(s.message, Modifier.padding(24.dp), color = MaterialTheme.colorScheme.error)
         is UiState.History -> {
-            LazyColumn(Modifier.fillMaxSize().padding(16.dp), Arrangement.spacedBy(12.dp)) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 items(s.consultations) { c ->
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(16.dp)) {
@@ -224,7 +234,10 @@ fun InvoicesScreen(api: VetCuraApi, auth: String) {
     } else if (items!!.isEmpty()) {
         Text("No tienes facturas disponibles.", Modifier.padding(24.dp))
     } else {
-        LazyColumn(Modifier.fillMaxSize().padding(16.dp), Arrangement.spacedBy(12.dp)) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             items(items!!) { i ->
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp)) {
@@ -240,7 +253,7 @@ fun InvoicesScreen(api: VetCuraApi, auth: String) {
 sealed interface UiState {
     data object Loading : UiState
     data class Error(val message: String) : UiState
-    data class Pets(val items: List<Pair<com.vetcura.app.data.Pet, List<Alert>>>) : UiState
+    data class Pets(val items: List<Pair<com.vetcura.app.data.Pet, List<com.vetcura.app.data.Alert>>>) : UiState
     data class History(
         val consultations: List<com.vetcura.app.data.Consultation>,
         val vaccinations: List<com.vetcura.app.data.Vaccination>,

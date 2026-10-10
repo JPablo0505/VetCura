@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
@@ -13,7 +14,12 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "0.1.0"
-        buildConfigField("String", "API_URL", "\"http://10.0.2.2:3001\"")
+        // Emulator default: http://10.0.2.2:3001. Physical device on the
+        // same Wi-Fi: pass -PapiUrl=http://<pc-lan-ip>:3001 at build time.
+        val apiUrl = (project.findProperty("apiUrl") as String?)
+            ?: System.getenv("VETCURA_API_URL")
+            ?: "http://10.0.2.2:3001"
+        buildConfigField("String", "API_URL", "\"$apiUrl\"")
     }
     buildTypes {
         release {
