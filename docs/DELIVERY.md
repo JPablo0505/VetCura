@@ -42,6 +42,24 @@ Exact setup + validation steps: `docs/OAUTH.md`. This phase is
 therefore functionally complete but externally unblocked-pending —
 not marked fully verified end-to-end.
 
+## OAuth local configuration (2026-10-10, no secrets committed)
+
+- `backend/.env` created from `.env.example` (verified gitignored):
+  web audience configured, machine-local random `JWT_SECRET`
+  (existing sessions were invalidated by the rotation — log in again),
+  Firebase/SMTP intentionally left empty.
+- Found while wiring: entry points never loaded `.env` (`dotenv`
+  absent), so documented `.env` flow was inert — added `dotenv` to the
+  four entry points (server/migrate/seed/send-due); suite still 63/63.
+- Live check: `POST /auth/google` with a fake token → 401
+  `invalid_google_token` (was 501) — audience configured, crypto path
+  armed, no session minted.
+- APK rebuilt with the web audience as `googleClientId` (verified in
+  generated `BuildConfig`); the Google button now appears in the app.
+- Google Sign-In is NOT marked verified: the five `docs/OAUTH.md`
+  checks need a real Google account on the phone (steps below in the
+  handoff).
+
 ## v0.1.0 record (kept below)
 
 ## Verified (commands executed, outputs observed)

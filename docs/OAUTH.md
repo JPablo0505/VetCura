@@ -1,8 +1,11 @@
 # Google Sign-In setup (Android + backend)
 
-Status: IMPLEMENTED but UNCONFIGURED — no OAuth clients exist yet, so
-`/auth/google` answers 501 and the app shows email login only. Nothing
-below is claimed as tested against Google.
+Status: CONFIGURED LOCALLY, phone validation pending — the Android
+client (`VetCura Android Debug`) and the Web audience client exist in
+Google Cloud; `backend/.env` (gitignored) carries the web audience and
+the APK under test has it baked as `GOOGLE_CLIENT_ID`. The 501 path is
+gone (fake tokens now answer 401 `invalid_google_token`). Nothing below
+is claimed as tested against a real Google account yet.
 
 ## 1. Google Cloud project
 
