@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors');
 const { errorHandler, notFound } = require('./lib/errors');
 const { requireAuth, requireRole } = require('./middleware/auth');
 const { buildAuthRoutes } = require('./routes/auth');
@@ -10,6 +11,10 @@ const { buildInvoiceRoutes } = require('./routes/invoices');
 
 function createApp(db) {
   const app = express();
+  // The web panel (Vite :5173) and the API (:3001) are different origins
+  // in local dev, so cross-origin requests must be allowed explicitly.
+  // Restrict CORS_ORIGIN in production to the real panel URL.
+  app.use(cors({ origin: process.env.CORS_ORIGIN || true }));
   app.use(express.json({ limit: '1mb' }));
 
   app.get('/health', (req, res) => res.json({ ok: true }));

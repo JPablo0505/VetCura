@@ -67,7 +67,6 @@ functionality was removed; no stack was changed; no secrets added
 | 11 | Figma fidelity | — (link was a placeholder) | Mockups kept as provisional reference; no URL invented | ⛔ EXTERNAL BLOCKER |
 
 Code errors found and fixed in this phase (not blockers):
-
 - Google linking attached `google_sub` to non-owner accounts before
   rejecting them (403 after write). Now rejects before any write
   (`backend/src/routes/auth.js`).
@@ -79,6 +78,12 @@ Code errors found and fixed in this phase (not blockers):
   only, so Google linking by address could never match. `POST /owners`
   now accepts an optional real `email` (409 on duplicate, 400 on
   invalid); covered by a new test.
+- Missing CORS headers: the API rejected browser cross-origin calls
+  from the Vite panel (`Failed to fetch` on login). Added the `cors`
+  middleware (open origin in local dev via empty `CORS_ORIGIN`,
+  restricted in production); verified live with an `Origin:
+  http://localhost:5173` request returning
+  `Access-Control-Allow-Origin`. Suite still 16/16 after the change.
 
 Security notes (reviewed, no change required for v0.1.0): bcrypt-hashed
 staff passwords; JWT 12 h expiry via `JWT_SECRET` env (dev default is

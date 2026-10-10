@@ -17,7 +17,9 @@ npm test               # 15 integration tests (in-memory DB)
 
 Env (`backend/.env.example`): `PORT` (3001), `DATABASE_PATH`,
 `JWT_SECRET` (required in production), `JWT_EXPIRES_IN` (12h),
-`TAX_RATE` (0.10), `GOOGLE_CLIENT_ID` (empty → `/auth/google` is 501).
+`TAX_RATE` (0.10), `GOOGLE_CLIENT_ID` (empty → `/auth/google` is 501),
+`CORS_ORIGIN` (empty in local dev allows the panel origin; set the real
+panel URL in production).
 
 ## Web panel
 
