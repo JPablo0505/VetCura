@@ -47,7 +47,7 @@ export async function DashboardView(root) {
           ...appts.appointments.map((a) => [a.id, a.pet_name, a.starts_at, a.status, a.reason || '']),
           [],
           ['FACTURAS'],
-          ['id', 'propietario', 'estado', 'total_clp'],
+          ['id', 'propietario', 'estado', 'total_cop'],
           ...invs.invoices.map((i) => [i.id, i.owner_id, i.status, Math.round(i.total_cents / 100)]),
         ]);
         const blob = new Blob([csv], { type: 'text/csv' });

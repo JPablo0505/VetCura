@@ -1,4 +1,4 @@
-import { api, clp, petPhoto } from '../api.js';
+import { api, petPhoto } from '../api.js';
 
 export async function PatientsView(root, q = '') {
   root.innerHTML = '<h1>Pacientes e Historial</h1><p>Cargando…</p>';
