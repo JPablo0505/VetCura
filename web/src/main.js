@@ -72,10 +72,18 @@ function LoginView(root) {
       });
       setToken(r.token, r.refreshToken);
       meCache = null;
-      // Navigate explicitly: assigning the same hash value fires no
-      // hashchange event and would leave the login screen stuck.
-      location.hash = '#/dashboard';
-      router();
+      // Bulletproof post-login navigation: bounce through a transient
+      // hash so a hashchange ALWAYS fires (assigning the current value
+      // fires nothing), render directly, and reload as last resort.
+      // Reload is safe: the session persists in localStorage.
+      try {
+        location.hash = '#/login-ok';
+        location.hash = '#/dashboard';
+        await router();
+      } catch (err) {
+        console.error(err);
+        location.reload();
+      }
     } catch (err) {
       root.querySelector('#msg').innerHTML = `<div class="alert error">${err.message}</div>`;
     }
