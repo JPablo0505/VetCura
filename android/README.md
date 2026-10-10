@@ -6,32 +6,43 @@ Kotlin + Jetpack Compose + Retrofit + DataStore + Navigation-Compose.
 Rationale: official native stack, declarative UI matching the mockup
 cards, Retrofit maps 1:1 to the backend REST contract.
 
-## Build status: BLOCKED — no JDK, no Android SDK, no wrapper jar
+## Build status: WORKING (debug APK assembled 2026-10-10)
 
-Verified 2026-10-09 in this environment: `java`, `gradle`, `ANDROID_HOME`,
-`ANDROID_SDK_ROOT` and `%LOCALAPPDATA%\Android` are all absent, so neither
-`assembleDebug` nor any compilation was executed. Nothing below is claimed
-as built. The wrapper jar is intentionally not committed (Gradle
-publishes no standalone jar URL — the 404 on the raw GitHub path was
-verified); generate it once with any local Gradle ≥ 8 (`gradle wrapper`)
-or Android Studio.
+Toolchain (no admin needed, all portable under `%LOCALAPPDATA%`):
+Temurin JDK 17 (`Programs\jdk17`), Android SDK (`Android\Sdk`:
+cmdline-tools, `platforms;android-34`, `build-tools;34.0.0`, licenses
+accepted), Gradle 8.7 (`Programs\gradle\gradle-8.7`).
 
-Manual setup (precise steps, ~15 min + downloads):
+```powershell
+$env:JAVA_HOME = "$env:LOCALAPPDATA\Programs\jdk17\jdk-17.0.20.1+1"
+$env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
+Set-Location android
+& "$env:LOCALAPPDATA\Programs\gradle\gradle-8.7\bin\gradle.bat" assembleDebug "-PapiUrl=http://<pc-lan-ip>:3001"
+# APK: app/build/outputs/apk/debug/app-debug.apk
+```
 
-1. Install JDK 17 (e.g. Temurin 17) and set `JAVA_HOME`.
-2. Install Android SDK cmdline-tools; accept licenses; then install
-   `platform-tools`, `platforms;android-34`, `build-tools;34.0.0`.
+Remaining manual steps (unchanged): real device needs the PC LAN IP
+baked via `-PapiUrl` (emulator default is `http://10.0.2.2:3001`);
+`gradle/wrapper/gradle-wrapper.jar` is still generated via any local
+Gradle ≥ 8 (`gradle wrapper`) since Gradle publishes no standalone jar
+URL.
+
+## Fresh-machine setup (what was done here, reproducible)
+
+1. Portable Temurin JDK 17 zip → `%LOCALAPPDATA%\Programs\jdk17`;
+   set `JAVA_HOME` per session (no admin, no installer).
+2. Android cmdline-tools zip → `%LOCALAPPDATA%\Android\Sdk\cmdline-tools\latest`;
+   accept licenses; install `platform-tools`, `platforms;android-34`,
+   `build-tools;34.0.0` via `sdkmanager`.
 3. Copy `local.properties.example` to `local.properties` (gitignored)
    and set `sdk.dir` to your SDK path.
-4. From any Gradle ≥ 8 install run `gradle wrapper --gradle-version 8.7`
-   inside `android/` to produce `gradle/wrapper/gradle-wrapper.jar`
-   (first `./gradlew` run then downloads the 8.7 distribution).
-5. `cd android && ./gradlew assembleDebug` (Windows: `gradlew.bat
-   assembleDebug`).
+4. Portable Gradle 8.7 zip → run `gradle assembleDebug` directly
+   (wrapper jar optional: `gradle wrapper --gradle-version 8.7`).
 
 Expected artifact: `android/app/build/outputs/apk/debug/app-debug.apk`.
-Install it with `adb install` against an emulator running API 34 with the
-backend reachable at `http://10.0.2.2:3001` (`API_URL` BuildConfig).
+Install it with `adb install` or by copying the file to the phone;
+the baked `API_URL` (`-PapiUrl`, default `http://10.0.2.2:3001` for the
+emulator) must be reachable from the device.
 
 ## Structure
 

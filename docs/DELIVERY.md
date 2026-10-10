@@ -46,6 +46,41 @@
   `docs/VISUAL-SPEC.md`, assets win). Nunito/Inter roles kept.
 - Original SVGs untouched; no emoji icons; photos stay embedded.
 
+## APK built (2026-10-10, this machine)
+
+Toolchain installed without admin rights: Temurin JDK 17.0.20
+(portable, `%LOCALAPPDATA%\Programs\jdk17`), Android SDK cmdline-tools +
+`platforms;android-34` + `build-tools;34.0.0` + licenses
+(`%LOCALAPPDATA%\Android\Sdk`), Gradle 8.7 (portable). Fixes needed to
+compile: Compose compiler plugin (Kotlin 2.0 requirement),
+`gradle.properties` with `android.useAndroidX=true`, `.gradle`→`.gradle.kts`
+renames (files were Kotlin DSL syntax), `LazyColumn` named
+`verticalArrangement` argument, exhaustive `when`, `Alert` import
+qualification, `usesCleartextTraffic=true` for LAN HTTP backend.
+
+- Command: `gradle assembleDebug -PapiUrl=http://192.168.1.32:3001`
+  → **BUILD SUCCESSFUL**, `android/app/build/outputs/apk/debug/app-debug.apk`
+  (9.6 MB, `BuildConfig.API_URL` verified as `http://192.168.1.32:3001`).
+- The APK is a build artifact (`build/` is gitignored); sources + marker
+  commit `b6c555b` are in git.
+
+### Install on a physical phone (same Wi-Fi as the PC)
+
+1. On the PC, run the backend: `cd backend && npm start`
+   (listens on all interfaces :3001).
+2. Allow Node through Windows Firewall if the phone cannot reach it
+   (private network, port 3001), or test from the phone browser first:
+   `http://192.168.1.32:3001/health` must answer `{"ok":true}`.
+   If the PC IP changes, rebuild with `-PapiUrl=http://<new-ip>:3001`.
+3. Copy `app-debug.apk` to the phone (USB, Drive, WhatsApp to yourself…)
+   and open it; allow “install unknown apps” for that source.
+4. Log in with the demo owner: `demo@vetcura.local` / `VetCura123!`
+   (pet Firulais + one upcoming vaccination alert; verified live
+   against the API: role=owner, pets=Firulais, alerts=1).
+   To get this account in your local DB, reset it once:
+   delete `backend/data/vetcura.db*` and re-run `npm run migrate`
+   + `npm run seed`.
+
 ## Closure validation (2026-10-09, repo at 6 work-unit commits + fixes)
 
 Re-ran every applicable check from the current tree. No working

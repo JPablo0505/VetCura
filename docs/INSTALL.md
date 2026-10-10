@@ -31,7 +31,9 @@ npm run dev            # dev server :5173, API at VITE_API_URL (default http://l
 ```
 
 Login with a staff account from the seed
-(`admin@vetcura.local` / `VetCura123!`).
+(`admin@vetcura.local` / `VetCura123!`). The Android app signs in as the
+demo owner: `demo@vetcura.local` / `VetCura123!` (pet Firulais + one
+upcoming vaccination alert).
 
 Owner onboarding: staff create the owner with their REAL email
 (`POST /owners {display_name, email}`); the owner then signs in with
