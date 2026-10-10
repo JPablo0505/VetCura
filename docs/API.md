@@ -10,8 +10,10 @@ Errors: `{ error: { code, message } }` with 400 validation_error,
 - `POST /auth/login {email, password}` → `{token, refreshToken, user}`
   (30/min/IP rate limit → 429 + `Retry-After`).
 - `POST /auth/google {id_token}` → session (owner only). 501
-  unconfigured; 409 `link_verification_required` for known emails
-  without a linked `sub` — never auto-linked.
+  unconfigured; 403 `registration_required` for unknown emails
+  (closed registration — staff registers owners first); pending
+  accounts are claimed on first verified touch; 409
+  `link_verification_required` for password accounts.
 - `PUT /auth/google/link {id_token}` (own Bearer session) and
   `POST /auth/google/link {email, password, id_token}` (password
   proof) → link a Google identity after email match + verified mail.

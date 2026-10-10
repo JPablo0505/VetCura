@@ -29,8 +29,11 @@ GOOGLE_ALLOWED_AUDIENCES=<web-client-id>.apps.googleusercontent.com
 
 The backend verifies signature, issuer (`accounts.google.com`),
 expiry and audience with `google-auth-library`. Identities key by
-stable `sub`. A known email WITHOUT a linked `sub` gets
-409 `link_verification_required` — never auto-linked.
+stable `sub`. Registration is CLOSED (approved policy): unknown emails
+get 403 `registration_required` (no self-service signup); a pending
+account (registered by staff, no password yet) is claimed on first
+verified touch; password accounts link explicitly (409
+`link_verification_required`).
 
 ## 3. Android build configuration
 
@@ -45,12 +48,14 @@ existing account: log in with email first, then Perfil →
 
 ## 4. End-to-end validation (once configured)
 
-1. `POST /auth/google {id_token}` from the app → 200 + owner session.
+1. `POST /auth/google {id_token}` from a pre-registered pending
+   account → 200 + owner session (`auth.google.claim` in audit).
 2. Same `sub` again → same user id (no duplicate).
-3. Existing email, fresh `sub` → 409 `link_verification_required`
+3. Unknown email → 403 `registration_required`, nothing created.
+4. Password account, fresh `sub` → 409 `link_verification_required`
    with `google_sub` still NULL in DB.
-4. Wrong audience token → 401 `invalid_google_token`.
-5. Staff account linking attempt → 403, nothing persisted.
+5. Wrong audience token → 401 `invalid_google_token`.
+6. Staff account linking attempt → 403, nothing persisted.
 
 ## 5. FCM + email (same honesty rule)
 

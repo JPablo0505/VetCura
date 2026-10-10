@@ -60,11 +60,17 @@ pluggable email/push providers) — without breaking v0.1.0 behavior.
 
 ## Verification evidence
 
-- `backend: npm test` → 63/63 (16 api + 18 auth-v2 + 10 profile + 8 pets + 11 notify).
+- `backend: npm test` → 65/65 (16 api + 20 auth-v2 + 10 profile + 8 pets + 11 notify).
+- Closed registration (user-approved): unknown emails 403 without
+  creating; pending accounts claimed on first verified touch; detected
+  live when two self-registered Google accounts appeared in testing.
 - Migration v2: clean DB versions 1,2 with 6/6 tables; v1 data DB
   migrated with all rows preserved + v2 tables.
 - `web: npm run build` OK (owners view included).
 - `android: assembleDebug` BUILD SUCCESSFUL (Google, profile, prefs,
   photos, encrypted store, permission).
+- App follow-ups fixed: photo URLs versioned by filename (no stale
+  avatars), Google errors surfaced by backend code
+  (`registration_required` explained in-app).
 - Real OAuth/FCM/SMTP e2e: blocked (no credentials) — documented in
   `docs/OAUTH.md` + `docs/DELIVERY.md`; providers refuse honestly.

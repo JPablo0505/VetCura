@@ -187,11 +187,25 @@ fun LoginScreen(api: VetCuraApi, onSession: (String, String) -> Unit) {
 }
 
 private fun googleLinkHint(e: Exception): String {
+    // Backend error codes travel in the JSON body; surface the exact
+    // case (unregistered account vs pending link) instead of a bare 403.
     val http = e as? retrofit2.HttpException
-    if (http?.code() == 409) {
-        return "Tu correo ya tiene cuenta: entra con tu correo y vincúlalo desde Perfil."
+    val code = try {
+        http?.response()?.errorBody()?.string()?.let { body ->
+            """"code"\s*:\s*"([^"]+)"""".toRegex().find(body)?.groupValues?.get(1)
+        }
+    } catch (_: Exception) {
+        null
     }
-    return "No se pudo iniciar sesión con Google: ${friendlyError(e)}"
+    return when (code) {
+        "registration_required" -> "Tu cuenta aún no está registrada en la clínica. Contactá a recepción."
+        "link_verification_required" -> "Tu correo ya tiene cuenta: entra con tu correo y vincúlalo desde Perfil."
+        else -> if (http?.code() == 409) {
+            "Tu correo ya tiene cuenta: entra con tu correo y vincúlalo desde Perfil."
+        } else {
+            "No se pudo iniciar sesión con Google: ${friendlyError(e)}"
+        }
+    }
 }
 
 private data class HomeData(
@@ -261,7 +275,9 @@ fun HomeScreen(
                     if (s.ownerPhoto != null) {
                         AuthImage(
                             auth,
-                            "${com.vetcura.app.BuildConfig.API_URL}/me/photo",
+                            // Versioned by filename: every upload mints a new
+                            // name, so Coil never serves a stale avatar here.
+                            "${com.vetcura.app.BuildConfig.API_URL}/me/photo?v=${s.ownerPhoto}",
                             s.ownerName,
                             Modifier.size(56.dp).clip(CircleShape),
                         )
@@ -323,7 +339,7 @@ fun HomeScreen(
                                         if (pet.photo_path != null) {
                                             AuthImage(
                                                 auth,
-                                                "${com.vetcura.app.BuildConfig.API_URL}/pets/${pet.id}/photo",
+                                                "${com.vetcura.app.BuildConfig.API_URL}/pets/${pet.id}/photo?v=${pet.photo_path}",
                                                 pet.name,
                                                 Modifier.fillMaxWidth().height(140.dp),
                                             )
@@ -981,7 +997,7 @@ fun HistoryScreen(api: VetCuraApi, auth: String, petId: Int) {
                                 if (d.pet.photo_path != null) {
                                     AuthImage(
                                         auth,
-                                        "${com.vetcura.app.BuildConfig.API_URL}/pets/$petId/photo",
+                                        "${com.vetcura.app.BuildConfig.API_URL}/pets/$petId/photo?v=${d.pet.photo_path}",
                                         d.pet.name,
                                         Modifier.fillMaxWidth().height(170.dp).clip(RoundedCornerShape(12.dp)),
                                     )
