@@ -94,7 +94,9 @@ function buildOwnerPetRoutes(db) {
       }
       const owner = db
         .prepare(
-          `SELECT u.id AS user_id, u.email, u.display_name, o.phone, o.address
+          `SELECT u.id AS user_id, u.email, u.display_name, o.phone, o.address,
+                  o.photo_path,
+                  CASE WHEN u.email_verified_at IS NULL THEN 0 ELSE 1 END AS email_verified
            FROM owners o JOIN users u ON u.id = o.user_id WHERE u.id = ?`,
         )
         .get(id);

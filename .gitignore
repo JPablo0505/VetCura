@@ -5,6 +5,7 @@ build/
 *.db-journal
 *.db-wal
 *.db-shm
+backend/data/
 .env
 coverage/
 .gradle/

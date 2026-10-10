@@ -8,6 +8,7 @@ const { buildAppointmentRoutes } = require('./routes/appointments');
 const { buildClinicalRoutes } = require('./routes/clinical');
 const { buildCatalogRoutes } = require('./routes/catalog');
 const { buildInvoiceRoutes } = require('./routes/invoices');
+const { buildProfileRoutes } = require('./routes/profile');
 
 function createApp(db, options = {}) {
   const app = express();
@@ -26,6 +27,7 @@ function createApp(db, options = {}) {
   api.use(buildClinicalRoutes(db));
   api.use(buildCatalogRoutes(db));
   api.use(buildInvoiceRoutes(db));
+  api.use(buildProfileRoutes(db));
 
   // Dashboard KPIs computed from REAL system data (no fixtures).
   api.get(
