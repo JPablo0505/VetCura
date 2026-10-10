@@ -485,6 +485,7 @@ fun HistoryAllScreen(api: VetCuraApi, auth: String, onPet: (Int) -> Unit) {
         scope.launch {
             try {
                 val pets = api.pets("Bearer $auth").pets
+                val names = pets.associate { it.id to it.name }
                 val all = mutableListOf<Pair<Int, TimelineEntry>>()
                 for (pet in pets) {
                     val h = api.history("Bearer $auth", pet.id)
@@ -495,6 +496,10 @@ fun HistoryAllScreen(api: VetCuraApi, auth: String, onPet: (Int) -> Unit) {
                         val state = if (v.given_date == null) "Pendiente (vence ${v.due_date})" else "Aplicada el ${v.given_date}"
                         all.add(pet.id to TimelineEntry(v.due_date, "${pet.name} · Vacuna ${v.vaccine}", state))
                     }
+                }
+                for (a in api.appointments("Bearer $auth").appointments) {
+                    val who = names[a.pet_id] ?: "Mascota"
+                    all.add(a.pet_id to TimelineEntry(a.starts_at, "$who · Cita: ${a.reason ?: "Control general"}", "${friendlyStatus(a.status)} · ${friendlyDateTime(a.starts_at)}"))
                 }
                 entries = all.sortedByDescending { it.second.date }
             } catch (e: Exception) {
@@ -1160,15 +1165,56 @@ fun AuthImage(
 @Composable
 fun rememberPhotoPicker(onBytes: (ByteArray, String) -> Unit): androidx.activity.result.ActivityResultLauncher<String> {
     val context = androidx.compose.ui.platform.LocalContext.current
-    return rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        try {
-            val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
-            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            if (bytes != null) onBytes(bytes, mime)
-        } catch (_: Exception) {
+    val cropLauncher = rememberLauncherForActivityResult(
+        com.canhub.cropper.CropImageContract(),
+    ) { result ->
+        if (result.isSuccessful) {
+            try {
+                val bytes = result.uriContent?.let {
+                    context.contentResolver.openInputStream(it)?.use { s -> s.readBytes() }
+                }
+                // Square crop + downscale to 1024px JPEG: crisp on screen,
+                // always comfortably under the 2 MB server cap.
+                if (bytes != null) onBytes(downscaleToJpeg(bytes), "image/jpeg")
+            } catch (_: Exception) {
+            }
         }
     }
+    return rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val options = com.canhub.cropper.CropImageOptions(
+            aspectRatioX = 1,
+            aspectRatioY = 1,
+            fixAspectRatio = true,
+            outputCompressFormat = android.graphics.Bitmap.CompressFormat.JPEG,
+            outputCompressQuality = 90,
+        )
+        cropLauncher.launch(com.canhub.cropper.CropImageContractOptions(uri, options))
+    }
+}
+
+private fun downscaleToJpeg(bytes: ByteArray, maxSide: Int = 1024): ByteArray {
+    val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    var sample = 1
+    while (bounds.outWidth / sample > maxSide * 2 || bounds.outHeight / sample > maxSide * 2) {
+        sample *= 2
+    }
+    val decoded = android.graphics.BitmapFactory.decodeByteArray(
+        bytes, 0, bytes.size,
+        android.graphics.BitmapFactory.Options().apply { inSampleSize = sample },
+    ) ?: return bytes
+    val ratio = maxSide / maxOf(decoded.width, decoded.height).toFloat()
+    val scaled = if (ratio < 1f) {
+        android.graphics.Bitmap.createScaledBitmap(
+            decoded, (decoded.width * ratio).toInt(), (decoded.height * ratio).toInt(), true,
+        )
+    } else {
+        decoded
+    }
+    val out = java.io.ByteArrayOutputStream()
+    scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, out)
+    return out.toByteArray()
 }
 
 fun photoPart(bytes: ByteArray, mime: String): okhttp3.MultipartBody.Part {
