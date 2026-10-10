@@ -39,6 +39,7 @@ import com.vetcura.app.ui.screens.AppointmentsScreen
 import com.vetcura.app.ui.screens.HistoryAllScreen
 import com.vetcura.app.ui.screens.HistoryScreen
 import com.vetcura.app.ui.screens.HomeScreen
+import com.vetcura.app.ui.screens.InvoiceScreen
 import com.vetcura.app.ui.screens.LoginScreen
 import com.vetcura.app.ui.screens.ProfileScreen
 import com.vetcura.app.ui.theme.VetCuraTheme
@@ -63,6 +64,7 @@ class MainActivity : ComponentActivity() {
                 var loaded by remember { mutableStateOf(false) }
                 var tab by remember { mutableStateOf(0) }
                 var openPet by remember { mutableStateOf<Int?>(null) }
+                var openInvoice by remember { mutableStateOf<Int?>(null) }
                 // Bumped on every navigation so lists (and photos) refetch
                 // instead of showing stale results when coming back.
                 var homeTick by remember { mutableStateOf(0) }
@@ -73,7 +75,7 @@ class MainActivity : ComponentActivity() {
                         TokenAuthenticator(store, BuildConfig.API_URL) {
                             // Dead session (revoked/expired refresh): drop it so
                             // the login screen — the only way back in — shows.
-                            runOnUiThread { token = null; tab = 0; openPet = null }
+                            runOnUiThread { token = null; tab = 0; openPet = null; openInvoice = null }
                         },
                     )
                 }
@@ -110,6 +112,7 @@ class MainActivity : ComponentActivity() {
                                 token = null
                                 tab = 0
                                 openPet = null
+                                openInvoice = null
                             }
                         }
                     }
@@ -147,7 +150,7 @@ class MainActivity : ComponentActivity() {
                                 TABS.forEachIndexed { i, t ->
                                     NavigationBarItem(
                                         selected = tab == i && openPet == null,
-                                        onClick = { tab = i; openPet = null; homeTick += 1 },
+                                        onClick = { tab = i; openPet = null; openInvoice = null; homeTick += 1 },
                                         icon = { Icon(t.icon, t.label) },
                                         label = { Text(t.label) },
                                     )
@@ -158,10 +161,11 @@ class MainActivity : ComponentActivity() {
                         Box(Modifier.padding(inner)) {
                             when {
                                 openPet != null -> HistoryScreen(api, auth, openPet!!)
+                                openInvoice != null -> InvoiceScreen(api, auth, openInvoice!!)
                                 tab == 0 -> HomeScreen(api, auth, homeTick, { openPet = it }, { tab = it })
                                 tab == 1 -> HistoryAllScreen(api, auth) { openPet = it }
                                 tab == 2 -> AppointmentsScreen(api, auth)
-                                else -> ProfileScreen(api, auth, ::logout)
+                                else -> ProfileScreen(api, auth, { openInvoice = it }, ::logout)
                             }
                         }
                     }

@@ -91,8 +91,17 @@ data class Invoice(
     val subtotal_cents: Int,
     val tax_cents: Int,
     val total_cents: Int,
+    val number: String? = null,
+    val payment_method: String? = null,
+    val paid_at: String? = null,
+    val issued_at: String? = null,
+    val owner_name: String? = null,
+    val pet_name: String? = null,
     val items: List<InvoiceItem> = emptyList(),
 )
+data class PayRequest(val payment_method: String)
+data class Clinic(val name: String, val nit: String, val address: String, val city: String)
+data class ClinicResponse(val clinic: Clinic)
 data class InvoicesResponse(val invoices: List<Invoice>)
 data class InvoiceResponse(val invoice: Invoice)
 data class Alert(val id: Int, val pet_id: Int, val pet_name: String, val vaccine: String, val due_date: String, val overdue: Boolean)
@@ -158,6 +167,8 @@ interface VetCuraApi {
     @GET("vets/{id}/slots") suspend fun slots(@Header("Authorization") auth: String, @Path("id") id: Int, @Query("date") date: String): SlotsResponse
     @GET("invoices") suspend fun invoices(@Header("Authorization") auth: String): InvoicesResponse
     @GET("invoices/{id}") suspend fun invoice(@Header("Authorization") auth: String, @Path("id") id: Int): InvoiceResponse
+    @POST("invoices/{id}/pay") suspend fun payInvoice(@Header("Authorization") auth: String, @Path("id") id: Int, @Body body: PayRequest): InvoiceResponse
+    @GET("clinic") suspend fun clinic(@Header("Authorization") auth: String): ClinicResponse
     @GET("me/devices") suspend fun devices(@Header("Authorization") auth: String): DevicesResponse
     @POST("me/devices") suspend fun registerDevice(@Header("Authorization") auth: String, @Body body: DeviceRequest): Map<String, Boolean>
     @DELETE("me/devices/{id}") suspend fun removeDevice(@Header("Authorization") auth: String, @Path("id") id: Int): Map<String, Boolean>

@@ -568,7 +568,7 @@ fun HistoryAllScreen(api: VetCuraApi, auth: String, onPet: (Int) -> Unit) {
 }
 
 @Composable
-fun ProfileScreen(api: VetCuraApi, auth: String, onLogout: () -> Unit) {
+fun ProfileScreen(api: VetCuraApi, auth: String, onInvoice: (Int) -> Unit, onLogout: () -> Unit) {
     var profile by remember { mutableStateOf<com.vetcura.app.data.Profile?>(null) }
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
@@ -767,9 +767,9 @@ fun ProfileScreen(api: VetCuraApi, auth: String, onLogout: () -> Unit) {
                 item { Text("No tienes facturas disponibles.") }
             } else {
                 items(invs) { i ->
-                    Card(Modifier.fillMaxWidth()) {
+                    Card(onClick = { onInvoice(i.id) }, Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(14.dp)) {
-                            Text("Factura #${i.id} · ${i.status}", fontWeight = FontWeight.Bold)
+                            Text("Factura ${i.number ?: "#${i.id}"} · ${friendlyInvoiceStatus(i.status)}", fontWeight = FontWeight.Bold)
                             Text("Total: ${formatCOP(i.total_cents)}")
                         }
                     }
@@ -1202,6 +1202,171 @@ sealed interface UiState {
         val consultations: List<com.vetcura.app.data.Consultation>,
         val vaccinations: List<com.vetcura.app.data.Vaccination>,
     ) : UiState
+}
+
+// Formal receipt mirroring the paper FACTURA DE VENTA: clinic header +
+// NIT, number, client, date, itemized table, subtotal + IVA, total,
+// thanks note. Paying happens here when the invoice is issued.
+@Composable
+fun InvoiceScreen(api: VetCuraApi, auth: String, invoiceId: Int) {
+    var invoice by remember { mutableStateOf<com.vetcura.app.data.Invoice?>(null) }
+    var clinic by remember { mutableStateOf<com.vetcura.app.data.Clinic?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var method by remember { mutableStateOf("efectivo") }
+    var confirm by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    suspend fun reload() {
+        try {
+            invoice = api.invoice("Bearer $auth", invoiceId).invoice
+            clinic = api.clinic("Bearer $auth").clinic
+        } catch (e: Exception) {
+            error = "No se pudo cargar la factura: ${friendlyError(e)}"
+        }
+    }
+    LaunchedEffect(invoiceId) { reload() }
+
+    val inv = invoice
+    when {
+        error != null && inv == null -> Text(error!!, Modifier.padding(24.dp), color = MaterialTheme.colorScheme.error)
+        inv == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        else -> LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(18.dp), Arrangement.spacedBy(6.dp)) {
+                        Text("VETERINARIO", style = MaterialTheme.typography.labelLarge)
+                        Text(clinic?.name ?: "VetCura", fontWeight = FontWeight.Bold)
+                        Text("NIT: ${clinic?.nit ?: "—"}", style = MaterialTheme.typography.bodySmall)
+                        Text("${clinic?.address ?: ""} · ${clinic?.city ?: ""}", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+            item {
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("FACTURA DE VENTA", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+                        Text(inv.number ?: "BORRADOR", style = MaterialTheme.typography.titleMedium)
+                    }
+                }
+            }
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), Arrangement.spacedBy(4.dp)) {
+                        Text("Cliente: ${inv.owner_name ?: "—"}", fontWeight = FontWeight.Bold)
+                        Text("Mascota: ${inv.pet_name ?: "—"}")
+                        Text("Fecha: ${inv.issued_at?.let { friendlyDate(it) } ?: "—"}")
+                        Text("Estado: ${friendlyInvoiceStatus(inv.status)}")
+                        if (inv.status == "paid") {
+                            Text("Pagada con ${friendlyMethod(inv.payment_method)}${inv.paid_at?.let { " el ${friendlyDate(it)}" } ?: ""}")
+                        }
+                    }
+                }
+            }
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(8.dp)) {
+                        inv.items.forEach { item ->
+                            Row(Modifier.fillMaxWidth().padding(8.dp), Arrangement.SpaceBetween) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(item.description, fontWeight = FontWeight.Bold)
+                                    Text("Cant: ${item.qty}", style = MaterialTheme.typography.bodySmall)
+                                }
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(formatCOP(item.line_total_cents))
+                                    Text("c/u ${formatCOP(item.qty.let { q -> if (q > 0) item.line_total_cents / q else 0 })}", style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), Arrangement.spacedBy(4.dp)) {
+                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                            Text("Sub Total")
+                            Text(formatCOP(inv.subtotal_cents))
+                        }
+                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                            Text("IVA (19%)")
+                            Text(formatCOP(inv.tax_cents))
+                        }
+                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                            Text("Total a Pagar", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+                            Text(formatCOP(inv.total_cents), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
+                        }
+                        Text("Gracias por su compra.", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+            if (inv.status == "issued") {
+                item {
+                    Text("Medio de pago", fontWeight = FontWeight.Bold)
+                }
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("efectivo" to "Efectivo", "transferencia" to "Transferencia", "tarjeta" to "Tarjeta").forEach { (value, label) ->
+                            if (value == method) {
+                                Button(onClick = {}) { Text(label) }
+                            } else {
+                                OutlinedButton(onClick = { method = value }) { Text(label) }
+                            }
+                        }
+                    }
+                }
+                item {
+                    error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    Button(onClick = { confirm = true }, Modifier.fillMaxWidth()) {
+                        Text("Pagar ${formatCOP(inv.total_cents)}")
+                    }
+                }
+            }
+            if (confirm) {
+                item {
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                    ) {
+                        Column(Modifier.padding(16.dp), Arrangement.spacedBy(8.dp)) {
+                            Text("Confirmar pago de ${formatCOP(inv.total_cents)} con ${friendlyMethod(method)}?", fontWeight = FontWeight.Bold)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(onClick = {
+                                    scope.launch {
+                                        try {
+                                            confirm = false
+                                            invoice = api.payInvoice("Bearer $auth", inv.id, com.vetcura.app.data.PayRequest(method)).invoice
+                                        } catch (e: Exception) {
+                                            confirm = false
+                                            error = "No se pudo pagar: ${friendlyError(e)}"
+                                        }
+                                    }
+                                }) { Text("Confirmar") }
+                                OutlinedButton(onClick = { confirm = false }) { Text("Cancelar") }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun friendlyInvoiceStatus(status: String): String = when (status) {
+    "draft" -> "Borrador"
+    "issued" -> "Emitida, pendiente de pago"
+    "paid" -> "Pagada"
+    "void" -> "Anulada"
+    else -> status
+}
+
+private fun friendlyMethod(method: String?): String = when (method) {
+    "efectivo" -> "efectivo"
+    "transferencia" -> "transferencia"
+    "tarjeta" -> "tarjeta"
+    else -> method ?: "—"
 }
 
 sealed interface GoogleResult {
