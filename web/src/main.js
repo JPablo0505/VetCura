@@ -5,6 +5,7 @@ import { AgendaView } from './views/agenda.js';
 import { PatientsView, PatientDetailView } from './views/patients.js';
 import { BillingView } from './views/billing.js';
 import { PharmacyView } from './views/pharmacy.js';
+import { OwnersView } from './views/owners.js';
 
 const app = document.getElementById('app');
 
@@ -19,6 +20,8 @@ export const ICONS = {
   paw: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="7" cy="9" r="2"/><circle cx="12" cy="6.5" r="2"/><circle cx="17" cy="9" r="2"/><path d="M12 11c-3 0-5.5 2.4-5.5 5 0 1.7 1.2 3 2.9 3 1 0 1.7-.5 2.6-.5s1.6.5 2.6.5c1.7 0 2.9-1.3 2.9-3 0-2.6-2.5-5-5.5-5z"/></svg>',
   pharmacy:
     '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3h6v4l4 12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L9 7V3z"/><path d="M7.5 14h9"/></svg>',
+  user:
+    '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-6.5 8-6.5s8 2.5 8 6.5"/></svg>',
   billing:
     '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6M9 11h6"/></svg>',
   logout:
@@ -77,11 +80,12 @@ const ROUTES = {
   '#/consulta': { title: 'Consulta', view: PatientsView, nav: 'consult', label: 'Módulo de Consulta', icon: 'consult' },
   '#/agenda': { title: 'Agenda', view: AgendaView, nav: 'agenda', label: 'Agenda Semanal', icon: 'agenda' },
   '#/pacientes': { title: 'Pacientes', view: PatientsView, nav: 'patients', label: 'Pacientes e Historial', icon: 'paw' },
+  '#/propietarios': { title: 'Propietarios', view: OwnersView, nav: 'owners', label: 'Propietarios', icon: 'user' },
   '#/farmacia': { title: 'Farmacia', view: PharmacyView, nav: 'pharmacy', label: 'Farmacia e Insumos', icon: 'pharmacy' },
   '#/facturacion': { title: 'Facturación', view: BillingView, nav: 'billing', label: 'Facturación', icon: 'billing' },
 };
 
-const NAV_ORDER = ['dashboard', 'consult', 'agenda', 'patients', 'pharmacy', 'billing'];
+const NAV_ORDER = ['dashboard', 'consult', 'agenda', 'patients', 'owners', 'pharmacy', 'billing'];
 
 async function router() {
   const hash = location.hash || '#/dashboard';
