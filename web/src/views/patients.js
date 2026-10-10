@@ -30,7 +30,43 @@ export async function PatientsView(root, q = '') {
     root.innerHTML = `
       <h1>Pacientes e Historial</h1>
       <p class="subtitle">${filtered.length} de ${pets.pets.length} pacientes${needle ? ` · filtro: “${q.trim()}”` : ''}.</p>
-      ${cards ? `<div class="pet-grid">${cards}</div>` : `<div class="empty">No hay pacientes que coincidan.</div>`}`;
+      ${cards ? `<div class="pet-grid">${cards}</div>` : `<div class="empty">No hay pacientes que coincidan.</div>`}
+      <h2>Nueva mascota</h2>
+      <form class="inline" id="create">
+        <select name="owner_id" required>
+          <option value="">Propietario…</option>
+          ${owners.owners.map((o) => `<option value="${o.user_id}">${o.display_name}</option>`).join('')}
+        </select>
+        <input name="name" placeholder="Nombre" required />
+        <input name="species" placeholder="Especie (dog, cat…)" required />
+        <input name="breed" placeholder="Raza" />
+        <input name="birthdate" type="date" />
+        <select name="sex"><option value="unknown">Sexo…</option><option value="male">Macho</option><option value="female">Hembra</option></select>
+        <input name="weight_kg" type="number" step="0.1" min="0" placeholder="Peso (kg)" />
+        <button>Registrar</button>
+      </form>
+      <div id="msg"></div>`;
+    root.querySelector('#create').onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      try {
+        await api('/pets', {
+          method: 'POST',
+          body: {
+            owner_id: Number(fd.get('owner_id')),
+            name: fd.get('name'),
+            species: fd.get('species'),
+            breed: fd.get('breed') || null,
+            birthdate: fd.get('birthdate') || null,
+            sex: fd.get('sex') || 'unknown',
+            weight_kg: fd.get('weight_kg') ? Number(fd.get('weight_kg')) : null,
+          },
+        });
+        PatientsView(root);
+      } catch (err) {
+        root.querySelector('#msg').innerHTML = `<div class="alert error">${err.message}</div>`;
+      }
+    };
   } catch (e) {
     root.innerHTML = `<h1>Pacientes e Historial</h1><div class="alert error">No se pudieron cargar los pacientes: ${e.message}</div>`;
   }

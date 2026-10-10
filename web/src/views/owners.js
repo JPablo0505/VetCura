@@ -24,7 +24,34 @@ export async function OwnersView(root) {
       <h1>Propietarios</h1>
       <p class="subtitle">${list.owners.length} propietarios registrados. Clic para revisar datos, mascotas y preferencias.</p>
       ${rows ? `<table><thead><tr><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>Verificado</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">Sin propietarios.</div>`}
+      <h2>Nuevo propietario</h2>
+      <form class="inline" id="create">
+        <input name="display_name" placeholder="Nombre completo" required />
+        <input name="email" type="email" placeholder="Correo (para acceso Google futuro)" />
+        <input name="phone" placeholder="Teléfono" />
+        <input name="address" placeholder="Dirección" />
+        <button>Registrar</button>
+      </form>
+      <div id="msg"></div>
       <div id="detail"></div>`;
+    root.querySelector('#create').onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      try {
+        await api('/owners', {
+          method: 'POST',
+          body: {
+            display_name: fd.get('display_name'),
+            email: fd.get('email') || null,
+            phone: fd.get('phone') || null,
+            address: fd.get('address') || null,
+          },
+        });
+        OwnersView(root);
+      } catch (err) {
+        root.querySelector('#msg').innerHTML = `<div class="alert error">${err.message}</div>`;
+      }
+    };
     root.querySelectorAll('.rowlink').forEach((tr) => {
       tr.onclick = async () => {
         const box = root.querySelector('#detail');
