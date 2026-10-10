@@ -1,5 +1,49 @@
 # Delivery Record (v0.1.0)
 
+## v0.2.0 — Profile, Google, Security, Notifications (this phase)
+
+Implemented + tested (63 backend tests green: 16 api + 18 auth-v2 +
+10 profile + 8 pets + 11 notify; `npm test` observed):
+
+- Google Sign-In reworked: crypto verification via `google-auth-library`
+  (signature/issuer/expiry/audience), identity keyed by `sub`, NO
+  email-coincidence auto-link (409 `link_verification_required`),
+  session- or password-proof linking, staff roles immutable via Google.
+  Verifier injectable → invalid/expired/audience/duplicates/role
+  cases tested without network.
+- Refresh rotation (SHA-256 stored, single-use, revocation, sessions
+  list without hashes), 30m access tokens, auth rate limit (429 +
+  `Retry-After`), uniform 401s, bcrypt retained + documented (existing
+  hash compatibility), audit log without secrets.
+- Owner profile/prefs/photo endpoints (strict whitelists, partial
+  updates, magic-byte + dimension + 2MB photo checks, auth/ownership
+  served files); staff owner PATCH + review data (verified flag, prefs).
+- Pet self-edit with ownership-from-session, append-only weight
+  measurements (consultations mirror too), pet photos, strict schema
+  (unknown/clinical fields → 400, `owner_id` → 400).
+- Notifications: prefs (4 toggles), caller-owned devices (409 on
+  foreign tokens, invalid FCM purged), idempotent reconcile
+  (appointments/vaccinations), clinic notices without clinical detail,
+  bounded retries + backoff, prefs re-checked at send, placeholder
+  emails never mailed, `notify:due` script + admin run endpoint.
+- Migration v2 verified on clean DB (versions 1,2; 6/6 tables) and on a
+  v1 data-bearing DB (all rows preserved + v2 tables).
+- Web: Propietarios admin view (list + detail + prefs). Build OK.
+- Android: Google button (Credential Manager, hidden unconfigured),
+  editable profile + photo, pet editing + weight + photos, prefs
+  switches, notifications inbox, EncryptedSharedPreferences tokens,
+  silent refresh authenticator, logout revokes server-side,
+  POST_NOTIFICATIONS permission. `assembleDebug` BUILD SUCCESSFUL.
+
+Real-provider integration: NOT tested (no OAuth clients, no Firebase
+project/`google-services.json`, no SMTP here). Providers refuse
+honestly (501/`provider_unconfigured`/pending); tests use stubs only.
+Exact setup + validation steps: `docs/OAUTH.md`. This phase is
+therefore functionally complete but externally unblocked-pending —
+not marked fully verified end-to-end.
+
+## v0.1.0 record (kept below)
+
 ## Verified (commands executed, outputs observed)
 
 - `backend: npm install` → 84 packages, OK.

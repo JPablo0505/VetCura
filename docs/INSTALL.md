@@ -16,10 +16,20 @@ npm test               # 15 integration tests (in-memory DB)
 ```
 
 Env (`backend/.env.example`): `PORT` (3001), `DATABASE_PATH`,
-`JWT_SECRET` (required in production), `JWT_EXPIRES_IN` (12h),
-`TAX_RATE` (0.10), `GOOGLE_CLIENT_ID` (empty → `/auth/google` is 501),
+`UPLOAD_DIR` (`./data/uploads`), `JWT_SECRET` (required in production),
+`JWT_EXPIRES_IN` (30m — short-lived access, renewed via refresh),
+`REFRESH_TOKEN_DAYS` (30), `AUTH_RATE_LIMIT_MAX` (30/min/IP on auth),
+`TAX_RATE` (0.19), `GOOGLE_CLIENT_ID` + `GOOGLE_ALLOWED_AUDIENCES`
+(empty → `/auth/google` is 501; see `docs/OAUTH.md`),
+`SMTP_*` (empty → mail stays pending, never fake-sent),
+`FCM_*` (empty → push refuses honestly),
 `CORS_ORIGIN` (empty in local dev allows the panel origin; set the real
 panel URL in production).
+
+Notifications scheduler (optional, every 30 min):
+`DATABASE_PATH=./data/vetcura.db node scripts/send-due.js`
+(or `npm run notify:due`). Prints a JSON summary; unconfigured
+providers report errors per item without marking anything sent.
 
 ## Web panel
 
