@@ -54,6 +54,7 @@ export async function AgendaView(root) {
         if (!byDay.has(key)) byDay.set(key, []);
         byDay.get(key).push(a);
       }
+      const vetName = Object.fromEntries(vets.vets.map((v) => [v.id, v.display_name]));
       const days = [];
       const start = mode === 'day' ? new Date(anchor).setHours(0, 0, 0, 0) : monday.getTime();
       const n = mode === 'day' ? 1 : span;
@@ -63,8 +64,10 @@ export async function AgendaView(root) {
         const chips = (byDay.get(key) || [])
           .map((a) => {
             const next = NEXT[a.status];
-            return `<button class="chip-appt st-${a.status}" data-id="${a.id}" data-next="${next || ''}" title="${next ? `Avanzar a ${STATUS_LABEL[next]} (clic)` : STATUS_LABEL[a.status] || a.status}">
-              <strong>${a.pet_name}</strong><small>${new Date(a.starts_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })} · ${a.reason || 'Sin motivo'}</small>
+            const detail = `${a.pet_name} · ${new Date(a.starts_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })} · ${vetName[a.vet_user_id] || 'Sin asignar'} · ${STATUS_LABEL[a.status] || a.status}`;
+            return `<button class="chip-appt st-${a.status}" data-id="${a.id}" data-pet="${a.pet_id}" data-next="${next || ''}" title="${detail}${next ? ` — clic para avanzar a ${STATUS_LABEL[next]}` : ' — clic para ver la ficha'}">
+              <strong>${a.pet_name}</strong><small>${new Date(a.starts_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })} · ${vetName[a.vet_user_id] || 'S/A'}</small>
+              <small>${a.reason || 'Sin motivo'}</small>
               <small>${STATUS_LABEL[a.status] || a.status}${next ? ' →' : ''}</small>
             </button>`;
           })
@@ -74,7 +77,7 @@ export async function AgendaView(root) {
       const vetOptions = vets.vets.map((v) => `<option value="${v.id}">${v.display_name}</option>`).join('');
       root.innerHTML = `
         <h1>Agenda Semanal</h1>
-        <p class="subtitle">${list.appointments.length} citas asignadas en el período · clic en una cita pendiente para avanzar su estado.</p>
+        <p class="subtitle">${list.appointments.length} citas asignadas en el período · clic en una cita en curso para avanzarla, en una terminada para ver su ficha.</p>
         <div class="view-tabs" id="modes">
           ${['day', 'week', 'month'].map((m) => `<button data-mode="${m}" class="${m === mode ? 'active' : ''}">${m === 'day' ? 'Día' : m === 'week' ? 'Semana' : 'Mes'}</button>`).join('')}
         </div>
@@ -112,7 +115,12 @@ export async function AgendaView(root) {
       };
       root.querySelectorAll('.chip-appt').forEach((c) => {
         c.onclick = async () => {
-          if (!c.dataset.next) return;
+          // Terminal states open the clinical file (the record);
+          // live ones advance along the status machine.
+          if (!c.dataset.next) {
+            location.hash = `#/pacientes/${c.dataset.pet}`;
+            return;
+          }
           const msg = root.querySelector('#msg');
           try {
             await api(`/appointments/${c.dataset.id}/status`, {

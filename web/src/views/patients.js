@@ -1,20 +1,17 @@
 import { api, petPhoto, API_URL, token } from '../api.js';
 
 // Authenticated image: private photos travel with the Bearer token,
-// never through public URLs.
-async function loadAuthPhoto(img, path) {
+// never through public URLs. Falls back to the decorative mockup photo.
+async function loadAuthPhoto(img, path, fallback) {
   try {
     const res = await fetch(`${API_URL}${path}`, {
       headers: { Authorization: `Bearer ${token()}` },
     });
-    if (!res.ok) {
-      img.alt = 'Sin foto registrada';
-      img.style.display = 'none';
-      return;
-    }
+    if (!res.ok) throw new Error('missing');
     img.src = URL.createObjectURL(await res.blob());
   } catch {
-    img.style.display = 'none';
+    if (fallback) img.src = fallback;
+    else img.style.display = 'none';
   }
 }
 
@@ -34,8 +31,9 @@ export async function PatientsView(root, q = '') {
     const cards = filtered
       .map((p) => {
         const age = p.birthdate ? Math.floor((Date.now() - new Date(p.birthdate)) / 3.156e10) : null;
+        const decoy = petPhoto(p.id, p.species);
         return `<div class="pet-card">
-          <img src="${petPhoto(p.id, p.species)}" alt="Foto de ${p.name}" loading="lazy" />
+          <img ${p.photo_path ? `data-petid="${p.id}" src="${decoy}"` : `src="${decoy}"`} alt="Foto de ${p.name}" loading="lazy" />
           <div class="body">
             <h3>${p.name}</h3>
             <div class="meta">${p.species}${p.breed ? ` · ${p.breed}` : ''}${age !== null ? ` · ${age} años` : ''} · ${ownerName[p.owner_id] || '—'}</div>
@@ -64,6 +62,10 @@ export async function PatientsView(root, q = '') {
         <button>Registrar</button>
       </form>
       <div id="msg"></div>`;
+    // Swap in the real uploaded photo wherever one exists.
+    root.querySelectorAll('img[data-petid]').forEach((img) => {
+      loadAuthPhoto(img, `/pets/${img.dataset.petid}/photo`);
+    });
     root.querySelector('#create').onsubmit = async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
