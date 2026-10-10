@@ -3,6 +3,7 @@ import { api, setToken, currentUser } from './api.js';
 import { DashboardView } from './views/dashboard.js';
 import { AgendaView } from './views/agenda.js';
 import { PatientsView, PatientDetailView } from './views/patients.js';
+import { ConsultView } from './views/consult.js';
 import { BillingView } from './views/billing.js';
 import { PharmacyView } from './views/pharmacy.js';
 import { OwnersView } from './views/owners.js';
@@ -77,7 +78,7 @@ function LoginView(root) {
 
 const ROUTES = {
   '#/dashboard': { title: 'Panel', view: DashboardView, nav: 'dashboard', label: 'Dashboard de Eficiencia', icon: 'dashboard' },
-  '#/consulta': { title: 'Consulta', view: PatientsView, nav: 'consult', label: 'Módulo de Consulta', icon: 'consult' },
+  '#/consulta': { title: 'Consulta', view: ConsultView, nav: 'consult', label: 'Módulo de Consulta', icon: 'consult' },
   '#/agenda': { title: 'Agenda', view: AgendaView, nav: 'agenda', label: 'Agenda Semanal', icon: 'agenda' },
   '#/pacientes': { title: 'Pacientes', view: PatientsView, nav: 'patients', label: 'Pacientes e Historial', icon: 'paw' },
   '#/propietarios': { title: 'Propietarios', view: OwnersView, nav: 'owners', label: 'Propietarios', icon: 'user' },
