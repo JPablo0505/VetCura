@@ -73,7 +73,8 @@ Errors: `{ error: { code, message } }` with 400 validation_error,
 
 ## Invoices (totals always server-side)
 
-- `GET /invoices` (owners scoped) · `GET /invoices/:id` (with items).
+- `GET /invoices` (owners scoped) · `GET /invoices/:id` (with items,
+  `number`, `owner_name`, `pet_name`).
 - `POST /invoices {pet_id}` → draft (staff; owner derived from pet).
 - `POST /invoices/:id/items {medication_id?, description, qty,
   unit_price_cents?}` — draft only; catalog price resolves when omitted;
@@ -82,6 +83,12 @@ Errors: `{ error: { code, message } }` with 400 validation_error,
   tax`. 409 once issued.
 - `DELETE /invoices/:id/items/:itemId` (draft only) ·
   `PATCH /invoices/:id/status` — draft→issued|void, issued→paid|void.
+  Issuing assigns the sequential `number` (`FV-0001…`) and notifies
+  the owner (minimal, prefs-gated).
+- `POST /invoices/:id/pay {payment_method: efectivo|transferencia|
+  tarjeta}` — owner (own, issued only) or staff → `paid` + `paid_at`.
+  409 on draft/paid/void, 403 on foreign invoices.
+- `GET /clinic` — receipt header (`CLINIC_*` env, Colombian defaults).
 
 ## Vet availability & slots (weekday 0–6 UTC, minutes since midnight)
 

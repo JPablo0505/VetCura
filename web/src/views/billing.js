@@ -9,8 +9,8 @@ export async function BillingView(root) {
     const rows = invoices.invoices
       .map((i) => {
         const cls = i.status === 'paid' ? 'ok' : i.status === 'issued' ? 'info' : i.status === 'void' ? 'bad' : '';
-        return `<tr><td>#${i.id}</td><td>${i.owner_id}</td><td>${cop(i.total_cents)}</td><td><span class="badge ${cls}">${STATUS_LABEL[i.status] || i.status}</span></td>
-          <td><button data-act="issued" data-id="${i.id}" class="secondary">Emitir</button>
+        return `<tr><td>${i.number || `#${i.id} borrador`}</td><td>${i.owner_id}</td><td>${cop(i.total_cents)}</td><td><span class="badge ${cls}">${STATUS_LABEL[i.status] || i.status}</span></td>
+          <td><button data-act="issued" data-id="${i.id}" class="secondary">Emitir y enviar</button>
           <button data-act="paid" data-id="${i.id}" class="secondary">Cobrar</button></td></tr>`;
       })
       .join('');
