@@ -67,6 +67,9 @@ class MainActivity : ComponentActivity() {
                 var loaded by remember { mutableStateOf(false) }
                 var tab by remember { mutableStateOf(0) }
                 var openPet by remember { mutableStateOf<Int?>(null) }
+                // Bumped on every navigation so lists (and photos) refetch
+                // instead of showing stale results when coming back.
+                var homeTick by remember { mutableStateOf(0) }
                 val scope = rememberCoroutineScope()
                 val notifPermission = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestPermission(),
@@ -137,7 +140,7 @@ class MainActivity : ComponentActivity() {
                                 TABS.forEachIndexed { i, t ->
                                     NavigationBarItem(
                                         selected = tab == i && openPet == null,
-                                        onClick = { tab = i; openPet = null },
+                                        onClick = { tab = i; openPet = null; homeTick += 1 },
                                         icon = { Icon(t.icon, t.label) },
                                         label = { Text(t.label) },
                                     )
@@ -148,7 +151,7 @@ class MainActivity : ComponentActivity() {
                         Box(Modifier.padding(inner)) {
                             when {
                                 openPet != null -> HistoryScreen(api, auth, openPet!!)
-                                tab == 0 -> HomeScreen(api, auth, { openPet = it }, { tab = it })
+                                tab == 0 -> HomeScreen(api, auth, homeTick, { openPet = it }, { tab = it })
                                 tab == 1 -> HistoryAllScreen(api, auth) { openPet = it }
                                 tab == 2 -> AppointmentsScreen(api, auth)
                                 else -> ProfileScreen(api, auth, ::logout)

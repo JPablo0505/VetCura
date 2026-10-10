@@ -68,6 +68,8 @@ import androidx.compose.ui.unit.dp
 import com.vetcura.app.R
 import com.vetcura.app.data.AppointmentRequest
 import com.vetcura.app.data.VetCuraApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -204,24 +206,35 @@ private data class HomeData(
 fun HomeScreen(
     api: VetCuraApi,
     auth: String,
+    tick: Int,
     onPet: (Int) -> Unit,
     onTab: (Int) -> Unit,
 ) {
     var state by remember { mutableStateOf<HomeData?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(auth) {
+    // Parallel fetch: /me first (yields the id), then everything
+    // independent concurrently instead of five sequential round trips.
+    // `tick` reloads whenever the tab becomes visible again.
+    LaunchedEffect(auth, tick) {
         scope.launch {
             try {
                 val me = api.me("Bearer $auth").user
-                val owner = api.owner("Bearer $auth", me.id).owner
-                val pets = api.pets("Bearer $auth").pets
-                val alerts = api.alerts("Bearer $auth").alerts
-                val upcoming = api.appointments("Bearer $auth").appointments
-                    .filter { it.status == "scheduled" || it.status == "checked_in" }
-                    .sortedBy { it.starts_at }
-                    .take(3)
-                state = HomeData(owner.display_name, owner.photo_path, pets, alerts, upcoming)
+                val data = kotlinx.coroutines.coroutineScope {
+                    val ownerD = async { api.owner("Bearer $auth", me.id).owner }
+                    val petsD = async { api.pets("Bearer $auth").pets }
+                    val alertsD = async { api.alerts("Bearer $auth").alerts }
+                    val apptD = async { api.appointments("Bearer $auth").appointments }
+                    val owner = ownerD.await()
+                    val pets = petsD.await()
+                    val alerts = alertsD.await()
+                    val upcoming = apptD.await()
+                        .filter { it.status == "scheduled" || it.status == "checked_in" }
+                        .sortedBy { it.starts_at }
+                        .take(3)
+                    HomeData(owner.display_name, owner.photo_path, pets, alerts, upcoming)
+                }
+                state = data
             } catch (e: Exception) {
                 error = "No se pudo cargar el inicio: ${friendlyError(e)}"
             }
@@ -489,9 +502,17 @@ fun HistoryAllScreen(api: VetCuraApi, auth: String, onPet: (Int) -> Unit) {
             try {
                 val pets = api.pets("Bearer $auth").pets
                 val names = pets.associate { it.id to it.name }
+                // Histories load concurrently; N sequential calls on
+                // mobile latency was the slowest screen in the app.
+                val perPet = kotlinx.coroutines.coroutineScope {
+                    pets.map { pet ->
+                        async {
+                            pet to api.history("Bearer $auth", pet.id)
+                        }
+                    }.awaitAll()
+                }
                 val all = mutableListOf<Pair<Int, TimelineEntry>>()
-                for (pet in pets) {
-                    val h = api.history("Bearer $auth", pet.id)
+                for ((pet, h) in perPet) {
                     for (c in h.consultations) {
                         all.add(pet.id to TimelineEntry(c.created_at, "${pet.name} · ${c.diagnosis}", c.treatment ?: ""))
                     }
@@ -554,8 +575,13 @@ fun ProfileScreen(api: VetCuraApi, auth: String, onLogout: () -> Unit) {
             name = p.display_name
             phone = p.phone ?: ""
             address = p.address ?: ""
-            invoices = api.invoices("Bearer $auth").invoices
-            notifs = api.notifications("Bearer $auth").notifications.take(10)
+            // Invoices and inbox load together with nothing depending on them.
+            kotlinx.coroutines.coroutineScope {
+                val invD = async { api.invoices("Bearer $auth").invoices }
+                val notD = async { api.notifications("Bearer $auth").notifications.take(10) }
+                invoices = invD.await()
+                notifs = notD.await()
+            }
         } catch (e: Exception) {
             error = "No se pudo cargar el perfil: ${friendlyError(e)}"
         }
@@ -769,8 +795,12 @@ fun AppointmentsScreen(api: VetCuraApi, auth: String) {
 
     suspend fun refresh() {
         try {
-            items = api.appointments("Bearer $auth").appointments
-            myPets = api.pets("Bearer $auth").pets
+            kotlinx.coroutines.coroutineScope {
+                val apptD = async { api.appointments("Bearer $auth").appointments }
+                val petsD = async { api.pets("Bearer $auth").pets }
+                items = apptD.await()
+                myPets = petsD.await()
+            }
             if (selectedPet == null) selectedPet = myPets.firstOrNull()
         } catch (e: Exception) {
             error = "No se pudieron cargar las citas: ${friendlyError(e)}"
@@ -905,13 +935,18 @@ fun HistoryScreen(api: VetCuraApi, auth: String, petId: Int) {
 
     suspend fun reload() {
         try {
-            val d = api.pet("Bearer $auth", petId)
+            val data = kotlinx.coroutines.coroutineScope {
+                val detailD = async { api.pet("Bearer $auth", petId) }
+                val historyD = async { api.history("Bearer $auth", petId) }
+                detailD.await() to historyD.await()
+            }
+            val d = data.first
             detail = d
             name = d.pet.name
             species = d.pet.species
             breed = d.pet.breed ?: ""
             birthdate = d.pet.birthdate ?: ""
-            val h = api.history("Bearer $auth", petId)
+            val h = data.second
             state = UiState.History(h.consultations, h.vaccinations)
         } catch (e: Exception) {
             state = UiState.Error("No se pudo cargar el historial: ${friendlyError(e)}")
