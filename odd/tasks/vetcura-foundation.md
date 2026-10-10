@@ -117,3 +117,9 @@ OUT OF THIS FEATURE: real Google OAuth credentials, Figma import, APK binary
   verified, manual `gradle wrapper` documented); Google e2e needs OAuth
   client; Figma URL still a placeholder (Mockups provisional).
 - Full table: `docs/DELIVERY.md` → Closure validation.
+- APK phase (2026-10-10): portable JDK 17 + SDK + Gradle 8.7 installed
+  (no admin); compile fixes (compose plugin, useAndroidX, `.kts`
+  renames, LazyColumn args, exhaustive `when`); `assembleDebug`
+  BUILD SUCCESSFUL → `app-debug.apk` 9.6 MB with
+  `API_URL=http://192.168.1.32:3001`; demo owner seeded
+  (`demo@vetcura.local`, verified live: Firulais + 1 alert).
