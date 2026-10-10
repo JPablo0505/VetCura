@@ -86,15 +86,17 @@ export async function AgendaView(root) {
         <p><span class="badge">Pendiente</span> <span class="badge warn">En consulta</span> <span class="badge ok">Atendida</span> <span class="badge bad">Cancelada / No asistió</span></p>
         <div class="week-grid">${days.join('')}</div>
         <div id="form-wrap" style="display:none">
-          <h2>Nueva cita</h2>
+          <h2>Nueva cita por disponibilidad</h2>
           <form class="inline" id="create">
             <input name="pet_id" type="number" min="1" placeholder="ID mascota" required />
-            <select name="vet_user_id"><option value="">Sin asignar</option>${vetOptions}</select>
-            <input name="starts_at" type="datetime-local" required />
-            <input name="ends_at" type="datetime-local" required />
+            <select name="vet_user_id" id="f-vet"><option value="">Sin asignar</option>${vetOptions}</select>
+            <input name="date" id="f-date" type="date" />
             <input name="reason" placeholder="Motivo" />
-            <button>Crear</button>
+            <input name="starts_at" type="hidden" />
+            <input name="ends_at" type="hidden" />
+            <button>Crear en el horario elegido</button>
           </form>
+          <div id="slots"><p class="empty">Elegí veterinario y fecha para ver sus horas libres.</p></div>
         </div>
         <div id="msg"></div>`;
       const shift = mode === 'month' ? 31 : mode === 'day' ? 1 : 7;
@@ -127,14 +129,18 @@ export async function AgendaView(root) {
         e.preventDefault();
         const fd = new FormData(e.target);
         const msg = root.querySelector('#msg');
+        if (fd.get('vet_user_id') && (!fd.get('starts_at') || !fd.get('ends_at'))) {
+          msg.innerHTML = '<div class="alert error">Elegí una hora libre del veterinario.</div>';
+          return;
+        }
         try {
           await api('/appointments', {
             method: 'POST',
             body: {
               pet_id: Number(fd.get('pet_id')),
               vet_user_id: fd.get('vet_user_id') ? Number(fd.get('vet_user_id')) : null,
-              starts_at: new Date(fd.get('starts_at')).toISOString(),
-              ends_at: new Date(fd.get('ends_at')).toISOString(),
+              starts_at: fd.get('starts_at') ? new Date(fd.get('starts_at')).toISOString() : new Date().toISOString(),
+              ends_at: fd.get('ends_at') ? new Date(fd.get('ends_at')).toISOString() : new Date(Date.now() + 1800e3).toISOString(),
               reason: fd.get('reason') || null,
             },
           });
@@ -144,6 +150,40 @@ export async function AgendaView(root) {
           msg.innerHTML = `<div class="alert error">${err.message}</div>`;
         }
       };
+      const vetSel = root.querySelector('#f-vet');
+      const dateSel = root.querySelector('#f-date');
+      async function loadSlots() {
+        const box = root.querySelector('#slots');
+        if (!vetSel.value || !dateSel.value) {
+          box.innerHTML = '<p class="empty">Elegí veterinario y fecha para ver sus horas libres.</p>';
+          return;
+        }
+        box.innerHTML = '<p>Cargando horas libres…</p>';
+        try {
+          const s = await api(`/vets/${vetSel.value}/slots?date=${dateSel.value}`);
+          if (!s.slots.length) {
+            box.innerHTML = '<div class="empty">Sin horas libres ese día (fuera de horario u ocupado).</div>';
+            return;
+          }
+          box.innerHTML = s.slots
+            .map((slot, i) => `<button class="secondary" data-i="${i}">${new Date(slot.starts_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</button>`)
+            .join(' ');
+          box.querySelectorAll('button').forEach((b) => {
+            b.onclick = () => {
+              const slot = s.slots[Number(b.dataset.i)];
+              const form = root.querySelector('#create');
+              form.starts_at.value = slot.starts_at;
+              form.ends_at.value = slot.ends_at;
+              box.querySelectorAll('button').forEach((x) => x.classList.remove('accent'));
+              b.classList.add('accent');
+            };
+          });
+        } catch (err) {
+          box.innerHTML = `<div class="alert error">${err.message}</div>`;
+        }
+      }
+      vetSel.onchange = loadSlots;
+      dateSel.onchange = loadSlots;
     } catch (e) {
       root.innerHTML = `<h1>Agenda Semanal</h1><div class="alert error">No se pudo cargar la agenda: ${e.message}</div>`;
     }
