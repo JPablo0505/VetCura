@@ -2,18 +2,27 @@ package com.vetcura.app.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -109,46 +118,110 @@ fun PetsDashboardScreen(api: VetCuraApi, auth: String, onPet: (Int) -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppointmentsScreen(api: VetCuraApi, auth: String) {
     var items by remember { mutableStateOf<List<com.vetcura.app.data.Appointment>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    var notice by remember { mutableStateOf<String?>(null) }
     var petId by remember { mutableStateOf("") }
     var reason by remember { mutableStateOf("") }
-    var startsAt by remember { mutableStateOf("") }
+    var showDate by remember { mutableStateOf(false) }
+    var showTime by remember { mutableStateOf(false) }
+    var durationMin by remember { mutableStateOf(30) }
+    val dateState = rememberDatePickerState()
+    val timeState = rememberTimePickerState(initialHour = 10, initialMinute = 0, is24Hour = true)
     val scope = rememberCoroutineScope()
-    LaunchedEffect(auth) {
-        scope.launch {
-            try {
-                items = api.appointments("Bearer $auth").appointments
-            } catch (e: Exception) {
-                error = "No se pudieron cargar las citas: ${e.message}"
-            }
+
+    suspend fun refresh() {
+        try {
+            items = api.appointments("Bearer $auth").appointments
+        } catch (e: Exception) {
+            error = "No se pudieron cargar las citas: ${friendlyError(e)}"
         }
     }
+    LaunchedEffect(auth) { refresh() }
+
+    val dateLabel = dateState.selectedDateMillis?.let { millis ->
+        java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault())
+            .format(java.util.Date(millis))
+    } ?: "Elegir fecha"
+    val timeLabel = "%02d:%02d".format(timeState.hour, timeState.minute)
+
+    if (showDate) {
+        DatePickerDialog(
+            onDismissRequest = { showDate = false },
+            confirmButton = { TextButton(onClick = { showDate = false }) { Text("Aceptar") } },
+        ) {
+            DatePicker(state = dateState)
+        }
+    }
+    if (showTime) {
+        AlertDialog(
+            onDismissRequest = { showTime = false },
+            confirmButton = { TextButton(onClick = { showTime = false }) { Text("Aceptar") } },
+            text = { TimePicker(state = timeState) },
+        )
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
             Text("Solicitar cita", style = MaterialTheme.typography.titleLarge)
-            OutlinedTextField(petId, { petId = it }, label = { Text("ID de mascota") })
+            OutlinedTextField(petId, { petId = it }, label = { Text("ID de mascota (figura en su tarjeta)") })
             OutlinedTextField(reason, { reason = it }, label = { Text("Motivo") })
-            OutlinedTextField(startsAt, { startsAt = it }, label = { Text("Inicio (ISO, ej. 2030-05-01T10:00:00Z)") })
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { showDate = true }) { Text(dateLabel) }
+                OutlinedButton(onClick = { showTime = true }) { Text(timeLabel) }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Duración:", modifier = Modifier.padding(top = 12.dp))
+                listOf(30, 60).forEach { mins ->
+                    if (mins == durationMin) {
+                        Button(onClick = {}) { Text("$mins min") }
+                    } else {
+                        OutlinedButton(onClick = { durationMin = mins }) { Text("$mins min") }
+                    }
+                }
+            }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            notice?.let { Text(it) }
             Button(onClick = {
-                scope.launch {
-                    try {
-                        val id = petId.toInt()
-                        val start = startsAt.ifBlank { "2030-05-01T10:00:00.000Z" }
-                        api.book(
-                            "Bearer $auth",
-                            AppointmentRequest(id, null, start, start, reason.ifBlank { null }),
-                        )
-                        items = api.appointments("Bearer $auth").appointments
-                        error = null
-                    } catch (e: Exception) {
-                        error = "No se pudo solicitar la cita: ${e.message}"
+                val pet = petId.toIntOrNull()
+                val day = dateState.selectedDateMillis
+                error = when {
+                    pet == null -> "Ingresá el ID numérico de tu mascota."
+                    day == null -> "Elegí la fecha de la cita."
+                    else -> null
+                }
+                if (error == null) {
+                    val zone = java.time.ZoneId.systemDefault()
+                    val localDay = java.time.Instant.ofEpochMilli(day!!).atZone(zone).toLocalDate()
+                    val start = java.time.LocalDateTime.of(
+                        localDay,
+                        java.time.LocalTime.of(timeState.hour, timeState.minute),
+                    )
+                    val end = start.plusMinutes(durationMin.toLong())
+                    scope.launch {
+                        try {
+                            api.book(
+                                "Bearer $auth",
+                                AppointmentRequest(
+                                    pet!!,
+                                    null,
+                                    start.atZone(zone).toInstant().toString(),
+                                    end.atZone(zone).toInstant().toString(),
+                                    reason.ifBlank { null },
+                                ),
+                            )
+                            notice = "Cita solicitada para el $dateLabel a las $timeLabel."
+                            reason = ""
+                            refresh()
+                        } catch (e: Exception) {
+                            error = "No se pudo solicitar la cita: ${friendlyError(e)}"
+                        }
                     }
                 }
             }) { Text("Solicitar") }
@@ -156,11 +229,41 @@ fun AppointmentsScreen(api: VetCuraApi, auth: String) {
         items(items ?: emptyList()) { a ->
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("#${a.id} · ${a.status}", style = MaterialTheme.typography.titleMedium)
-                    Text("${a.starts_at} — ${a.reason ?: "Sin motivo"}")
+                    Text("#${a.id} · ${friendlyStatus(a.status)}", style = MaterialTheme.typography.titleMedium)
+                    Text("${friendlyDateTime(a.starts_at)} — ${a.reason ?: "Sin motivo"}")
                 }
             }
         }
+    }
+}
+
+private fun friendlyStatus(status: String): String = when (status) {
+    "scheduled" -> "Programada"
+    "checked_in" -> "En consulta"
+    "done" -> "Atendida"
+    "cancelled" -> "Cancelada"
+    "no_show" -> "No asistió"
+    else -> status
+}
+
+private fun friendlyDateTime(iso: String): String = try {
+    val instant = java.time.Instant.parse(iso)
+    val zoned = instant.atZone(java.time.ZoneId.systemDefault())
+    java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
+        .format(java.util.Date.from(zoned.toInstant()))
+} catch (_: Exception) {
+    iso
+}
+
+private fun friendlyError(e: Exception): String {
+    val http = e as? retrofit2.HttpException ?: return e.message ?: "error desconocido"
+    return when (http.code()) {
+        400 -> "Revisá los datos ingresados."
+        401 -> "Tu sesión venció; volvé a entrar."
+        403 -> "No tenés permiso para esa acción."
+        404 -> "La mascota no existe."
+        409 -> "Ese horario ya está ocupado."
+        else -> "Error ${http.code()}."
     }
 }
 
