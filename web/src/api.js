@@ -35,13 +35,16 @@ export async function currentUser() {
 }
 
 export async function api(path, { method = 'GET', body } = {}) {
+  // FormData (photo uploads) must travel as multipart: the browser sets
+  // the boundary itself, so no Content-Type and no JSON encoding here.
+  const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
   const res = await fetch(`${API_URL}${path}`, {
     method,
     headers: {
-      'Content-Type': 'application/json',
+      ...(isForm ? {} : { 'Content-Type': 'application/json' }),
       ...(token() ? { Authorization: `Bearer ${token()}` } : {}),
     },
-    body: body ? JSON.stringify(body) : undefined,
+    body: !body ? undefined : isForm ? body : JSON.stringify(body),
   });
   let json = null;
   try {
