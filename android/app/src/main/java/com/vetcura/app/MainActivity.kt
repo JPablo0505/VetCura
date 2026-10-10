@@ -59,10 +59,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             VetCuraTheme {
-                val store = remember { TokenStore(applicationContext) }
-                val api = remember {
-                    buildApi(BuildConfig.API_URL, TokenAuthenticator(store, BuildConfig.API_URL))
-                }
                 var token by remember { mutableStateOf<String?>(null) }
                 var loaded by remember { mutableStateOf(false) }
                 var tab by remember { mutableStateOf(0) }
@@ -70,6 +66,17 @@ class MainActivity : ComponentActivity() {
                 // Bumped on every navigation so lists (and photos) refetch
                 // instead of showing stale results when coming back.
                 var homeTick by remember { mutableStateOf(0) }
+                val store = remember { TokenStore(applicationContext) }
+                val api = remember {
+                    buildApi(
+                        BuildConfig.API_URL,
+                        TokenAuthenticator(store, BuildConfig.API_URL) {
+                            // Dead session (revoked/expired refresh): drop it so
+                            // the login screen — the only way back in — shows.
+                            runOnUiThread { token = null; tab = 0; openPet = null }
+                        },
+                    )
+                }
                 val scope = rememberCoroutineScope()
                 val notifPermission = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestPermission(),

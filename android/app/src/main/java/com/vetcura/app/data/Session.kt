@@ -31,28 +31,54 @@ class TokenStore(context: Context) {
     }
 }
 
-// Silently rotates the access token once per 401 using the stored
-// refresh token, then retries the original request a single time.
+// Silently rotates the access token on 401 and retries the original
+// request a single time. Refreshes are serialized: concurrent 401s
+// (e.g. parallel screen loads) must not race the single-use rotation.
+// When no usable session remains, onAuthLost fires so the UI can offer
+// login again instead of trapping the user on error screens.
 class TokenAuthenticator(
     private val store: TokenStore,
     private val baseUrl: String,
+    private val onAuthLost: () -> Unit = {},
 ) : Authenticator {
+    private val lock = Any()
+
     override fun authenticate(route: Route?, response: Response): Request? {
-        if (responseCount(response) >= 2) return null
-        if (response.request.url.encodedPath.endsWith("auth/refresh")) return null
-        val refresh = store.refresh() ?: return null
-        val rotated = try {
-            val plain = buildApi(baseUrl)
-            val call = plain.refreshCall(RefreshRequest(refresh)).execute()
-            if (!call.isSuccessful) return null
-            call.body() ?: return null
-        } catch (_: Exception) {
-            return null
+        synchronized(lock) {
+            if (responseCount(response) >= 2) return null
+            if (response.request.url.encodedPath.endsWith("auth/refresh")) return null
+            val failedToken = response.request.header("Authorization")
+                ?.removePrefix("Bearer")?.trim()
+            // Another request already rotated while we waited: retry with
+            // the fresh token instead of burning the (now dead) refresh.
+            val current = store.access()
+            if (current != null && current != failedToken) {
+                return response.request.newBuilder()
+                    .header("Authorization", "Bearer $current")
+                    .build()
+            }
+            val refresh = store.refresh()
+            if (refresh == null) {
+                onAuthLost()
+                return null
+            }
+            val rotated = try {
+                val plain = buildApi(baseUrl)
+                val call = plain.refreshCall(RefreshRequest(refresh)).execute()
+                if (!call.isSuccessful) null else call.body()
+            } catch (_: Exception) {
+                null
+            }
+            if (rotated == null) {
+                store.clear()
+                onAuthLost()
+                return null
+            }
+            store.save(rotated.token, rotated.refreshToken)
+            return response.request.newBuilder()
+                .header("Authorization", "Bearer ${rotated.token}")
+                .build()
         }
-        store.save(rotated.token, rotated.refreshToken)
-        return response.request.newBuilder()
-            .header("Authorization", "Bearer ${rotated.token}")
-            .build()
     }
 
     private fun responseCount(response: Response): Int {
