@@ -4,6 +4,7 @@ const { validate } = require('../lib/validate');
 const { apiError } = require('../lib/errors');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { petVisibleTo } = require('./owners-pets');
+const { enqueue } = require('../lib/notify');
 
 const STAFF = ['admin', 'vet', 'staff'];
 
@@ -66,6 +67,18 @@ function buildClinicalRoutes(db) {
         db.prepare(
           "INSERT INTO pet_weight_measurements (pet_id, weight_kg, measured_at, source) VALUES (?, ?, date('now'), 'consultation')",
         ).run(body.pet_id, body.weight_kg);
+      }
+      // Operational notice: new clinical info is available in the owner app.
+      // Minimal payload (no clinical detail); prefs-gated inside enqueue.
+      const ownerRow = db.prepare('SELECT owner_id FROM pets WHERE id = ?').get(body.pet_id);
+      if (ownerRow) {
+        enqueue(db, {
+          key: `consult:${id}`,
+          userId: ownerRow.owner_id,
+          kind: 'clinic',
+          title: 'VetCura: nueva información clínica',
+          body: 'Hay información nueva de tu mascota. Abre la app para ver los detalles.',
+        });
       }
       res.status(201).json({ consultation: { id, ...body, vet_user_id: req.user.sub } });
     } catch (err) {
