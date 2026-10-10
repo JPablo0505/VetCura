@@ -6,6 +6,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -17,6 +19,9 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,6 +30,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import com.vetcura.app.data.RefreshRequest
 import com.vetcura.app.data.TokenAuthenticator
 import com.vetcura.app.data.TokenStore
@@ -48,6 +54,7 @@ private val TABS = listOf(
 )
 
 class MainActivity : ComponentActivity() {
+    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -97,6 +104,34 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     Scaffold(
+                        topBar = {
+                            TopAppBar(
+                                title = {
+                                    Column {
+                                        Row {
+                                            Text("Vet", fontWeight = FontWeight.ExtraBold)
+                                            Text(
+                                                "Cura",
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = MaterialTheme.colorScheme.secondary,
+                                            )
+                                        }
+                                        Text(
+                                            when {
+                                                openPet != null -> "Carnet Clínico"
+                                                else -> when (tab) {
+                                                    0 -> "Inicio · Mascotas"
+                                                    1 -> "Historial"
+                                                    2 -> "Citas"
+                                                    else -> "Perfil"
+                                                }
+                                            },
+                                            style = MaterialTheme.typography.bodySmall,
+                                        )
+                                    }
+                                },
+                            )
+                        },
                         bottomBar = {
                             NavigationBar {
                                 TABS.forEachIndexed { i, t ->

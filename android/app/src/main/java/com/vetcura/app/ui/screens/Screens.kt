@@ -24,8 +24,17 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Medication
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Vaccines
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -182,6 +191,7 @@ private fun googleLinkHint(e: Exception): String {
 
 private data class HomeData(
     val ownerName: String,
+    val ownerPhoto: String?,
     val pets: List<com.vetcura.app.data.Pet>,
     val alerts: List<com.vetcura.app.data.Alert>,
     val upcoming: List<com.vetcura.app.data.Appointment>,
@@ -208,7 +218,7 @@ fun HomeScreen(
                     .filter { it.status == "scheduled" || it.status == "checked_in" }
                     .sortedBy { it.starts_at }
                     .take(3)
-                state = HomeData(owner.display_name, pets, alerts, upcoming)
+                state = HomeData(owner.display_name, owner.photo_path, pets, alerts, upcoming)
             } catch (e: Exception) {
                 error = "No se pudo cargar el inicio: ${friendlyError(e)}"
             }
@@ -223,8 +233,39 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item {
-                Text("¡Hola, ${s.ownerName}!", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text("Tus regalones al día y con mucho amor", style = MaterialTheme.typography.bodyMedium)
+                Row(
+                    Modifier.fillMaxWidth(),
+                    Arrangement.SpaceBetween,
+                    Alignment.CenterVertically,
+                ) {
+                    Column {
+                        Text("¡Hola, ${s.ownerName}!", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text("Tus regalones al día y con mucho amor", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    if (s.ownerPhoto != null) {
+                        AuthImage(
+                            auth,
+                            "${com.vetcura.app.BuildConfig.API_URL}/me/photo",
+                            s.ownerName,
+                            Modifier.size(56.dp).clip(CircleShape),
+                        )
+                    } else {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primary,
+                            shape = CircleShape,
+                            modifier = Modifier.size(56.dp),
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    s.ownerName.take(1).uppercase(),
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
+                        }
+                    }
+                }
             }
             val top = s.alerts.firstOrNull()
             if (top != null) {
@@ -232,14 +273,18 @@ fun HomeScreen(
                     Card(
                         Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                        shape = RoundedCornerShape(20.dp),
                     ) {
                         Column(Modifier.padding(16.dp), Arrangement.spacedBy(6.dp)) {
-                            Text(
-                                if (top.overdue) "URGENTE · Venció el ${top.due_date}" else "Próximo vencimiento · ${top.due_date}",
-                                style = MaterialTheme.typography.labelLarge,
+                            AssistChip(
+                                onClick = {},
+                                label = { Text(if (top.overdue) "URGENTE" else "PRÓXIMO VENCIMIENTO") },
                             )
                             Text("${top.vaccine} para ${top.pet_name}", style = MaterialTheme.typography.titleMedium)
-                            Button(onClick = { onPet(top.pet_id) }) { Text("Ver detalle") }
+                            Text("Vence el ${top.due_date}", style = MaterialTheme.typography.bodyMedium)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(onClick = { onPet(top.pet_id) }) { Text("Ver detalle") }
+                            }
                         }
                     }
                 }
@@ -255,19 +300,59 @@ fun HomeScreen(
                 item {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         items(s.pets) { pet ->
-                            val hasAlert = s.alerts.any { it.pet_id == pet.id }
-                            Card(Modifier.width(220.dp)) {
+                            val petAlerts = s.alerts.filter { it.pet_id == pet.id }
+                            Card(Modifier.width(230.dp), shape = RoundedCornerShape(20.dp)) {
                                 Column {
-                                    Image(
-                                        painterResource(photoFor(pet.id, pet.species)), pet.name,
-                                        Modifier.fillMaxWidth().height(130.dp),
-                                        contentScale = ContentScale.Crop,
-                                    )
+                                    Box {
+                                        if (pet.photo_path != null) {
+                                            AuthImage(
+                                                auth,
+                                                "${com.vetcura.app.BuildConfig.API_URL}/pets/${pet.id}/photo",
+                                                pet.name,
+                                                Modifier.fillMaxWidth().height(140.dp),
+                                            )
+                                        } else {
+                                            Image(
+                                                painterResource(photoFor(pet.id, pet.species)), pet.name,
+                                                Modifier.fillMaxWidth().height(140.dp),
+                                                contentScale = ContentScale.Crop,
+                                            )
+                                        }
+                                        Surface(
+                                            color = if (petAlerts.isEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                                            shape = RoundedCornerShape(999.dp),
+                                            modifier = Modifier.padding(8.dp),
+                                        ) {
+                                            Text(
+                                                if (petAlerts.isEmpty()) "Saludable" else "Atención",
+                                                Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                                color = MaterialTheme.colorScheme.onPrimary,
+                                                style = MaterialTheme.typography.labelSmall,
+                                            )
+                                        }
+                                    }
                                     Column(Modifier.padding(12.dp), Arrangement.spacedBy(4.dp)) {
                                         Text(pet.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                         Text("${pet.breed ?: pet.species} · ${ageYears(pet.birthdate)}")
-                                        Text(if (hasAlert) "Atención vacuna" else "Saludable")
-                                        Text("Peso: ${pet.weight_kg?.toString() ?: "—"} kg")
+                                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                                            Column {
+                                                Text("Peso Actual", style = MaterialTheme.typography.labelSmall)
+                                                Text(
+                                                    "${pet.weight_kg?.toString() ?: "—"} kg",
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    fontWeight = FontWeight.Bold,
+                                                )
+                                            }
+                                            Column(horizontalAlignment = Alignment.End) {
+                                                Text("Vacunas", style = MaterialTheme.typography.labelSmall)
+                                                Text(
+                                                    if (petAlerts.isEmpty()) "Al día" else "${petAlerts.size} pendientes",
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                )
+                                            }
+                                        }
                                         Button(onClick = { onPet(pet.id) }, Modifier.fillMaxWidth()) {
                                             Text("Ver Carnet Clínico")
                                         }
@@ -285,13 +370,21 @@ fun HomeScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(10.dp)) {
                         Card(onClick = { onTab(1) }, Modifier.weight(1f)) {
-                            Column(Modifier.padding(14.dp)) {
+                            Column(Modifier.padding(14.dp), Arrangement.spacedBy(4.dp)) {
+                                Icon(
+                                    Icons.Filled.Vaccines, "Vacunas",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
                                 Text("Historial de Vacunas", fontWeight = FontWeight.Bold)
                                 Text("Control y refuerzos", style = MaterialTheme.typography.bodySmall)
                             }
                         }
                         Card(onClick = { onTab(1) }, Modifier.weight(1f)) {
-                            Column(Modifier.padding(14.dp)) {
+                            Column(Modifier.padding(14.dp), Arrangement.spacedBy(4.dp)) {
+                                Icon(
+                                    Icons.Filled.Medication, "Tratamientos",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
                                 Text("Tratamientos", fontWeight = FontWeight.Bold)
                                 Text("Dosis y recetas", style = MaterialTheme.typography.bodySmall)
                             }
@@ -299,13 +392,21 @@ fun HomeScreen(
                     }
                     Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(10.dp)) {
                         Card(onClick = { onTab(2) }, Modifier.weight(1f)) {
-                            Column(Modifier.padding(14.dp)) {
+                            Column(Modifier.padding(14.dp), Arrangement.spacedBy(4.dp)) {
+                                Icon(
+                                    Icons.Filled.CalendarMonth, "Citas",
+                                    tint = MaterialTheme.colorScheme.secondary,
+                                )
                                 Text("Próximas Citas", fontWeight = FontWeight.Bold)
                                 Text("${s.upcoming.size} programadas", style = MaterialTheme.typography.bodySmall)
                             }
                         }
                         Card(onClick = { onTab(3) }, Modifier.weight(1f)) {
-                            Column(Modifier.padding(14.dp)) {
+                            Column(Modifier.padding(14.dp), Arrangement.spacedBy(4.dp)) {
+                                Icon(
+                                    Icons.Filled.Person, "Perfil",
+                                    tint = MaterialTheme.colorScheme.secondary,
+                                )
                                 Text("Mi Perfil", fontWeight = FontWeight.Bold)
                                 Text("Datos y facturas", style = MaterialTheme.typography.bodySmall)
                             }
@@ -316,7 +417,9 @@ fun HomeScreen(
             item {
                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                     Text("Próximas Citas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    if (s.upcoming.isNotEmpty()) Text("${s.upcoming.size} programadas", style = MaterialTheme.typography.labelLarge)
+                    if (s.upcoming.isNotEmpty()) {
+                        AssistChip(onClick = {}, label = { Text("${s.upcoming.size} programadas") })
+                    }
                 }
             }
             if (s.upcoming.isEmpty()) {
@@ -324,15 +427,44 @@ fun HomeScreen(
             } else {
                 items(s.upcoming) { a ->
                     Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(14.dp)) {
-                            Text(friendlyDateTime(a.starts_at), style = MaterialTheme.typography.titleSmall)
-                            Text(a.reason ?: "Control general", fontWeight = FontWeight.Bold)
+                        Row(Modifier.padding(14.dp), Arrangement.spacedBy(12.dp), Alignment.CenterVertically) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.primary,
+                                shape = RoundedCornerShape(12.dp),
+                            ) {
+                                Column(
+                                    Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                ) {
+                                    Text(
+                                        appointmentDay(a.starts_at),
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                    Text(
+                                        appointmentMonth(a.starts_at),
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                        style = MaterialTheme.typography.labelSmall,
+                                    )
+                                }
+                            }
+                            Column {
+                                Text(friendlyTime(a.starts_at), style = MaterialTheme.typography.bodyMedium)
+                                Text(a.reason ?: "Control general", fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
             }
             item {
-                Button(onClick = { onTab(2) }, Modifier.fillMaxWidth()) { Text("+ Solicitar Cita") }
+                Button(
+                    onClick = { onTab(2) },
+                    Modifier.fillMaxWidth(),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondary,
+                    ),
+                ) { Text("+ Solicitar Cita") }
             }
         }
     }
@@ -616,7 +748,9 @@ fun AppointmentsScreen(api: VetCuraApi, auth: String) {
     var items by remember { mutableStateOf<List<com.vetcura.app.data.Appointment>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
-    var petId by remember { mutableStateOf("") }
+    var myPets by remember { mutableStateOf<List<com.vetcura.app.data.Pet>>(emptyList()) }
+    var selectedPet by remember { mutableStateOf<com.vetcura.app.data.Pet?>(null) }
+    var petMenu by remember { mutableStateOf(false) }
     var reason by remember { mutableStateOf("") }
     var showDate by remember { mutableStateOf(false) }
     var showTime by remember { mutableStateOf(false) }
@@ -628,6 +762,8 @@ fun AppointmentsScreen(api: VetCuraApi, auth: String) {
     suspend fun refresh() {
         try {
             items = api.appointments("Bearer $auth").appointments
+            myPets = api.pets("Bearer $auth").pets
+            if (selectedPet == null) selectedPet = myPets.firstOrNull()
         } catch (e: Exception) {
             error = "No se pudieron cargar las citas: ${friendlyError(e)}"
         }
@@ -662,7 +798,24 @@ fun AppointmentsScreen(api: VetCuraApi, auth: String) {
     ) {
         item {
             Text("Solicitar cita", style = MaterialTheme.typography.titleLarge)
-            OutlinedTextField(petId, { petId = it }, label = { Text("ID de mascota (figura en su tarjeta)") })
+            ExposedDropdownMenuBox(expanded = petMenu, onExpandedChange = { petMenu = it }) {
+                OutlinedTextField(
+                    selectedPet?.name ?: "Elegí tu mascota",
+                    {},
+                    readOnly = true,
+                    label = { Text("Mascota") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(petMenu) },
+                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                )
+                ExposedDropdownMenu(expanded = petMenu, onDismissRequest = { petMenu = false }) {
+                    myPets.forEach { pet ->
+                        DropdownMenuItem(
+                            text = { Text("${pet.name} · ${pet.breed ?: pet.species}") },
+                            onClick = { selectedPet = pet; petMenu = false },
+                        )
+                    }
+                }
+            }
             OutlinedTextField(reason, { reason = it }, label = { Text("Motivo") })
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { showDate = true }) { Text(dateLabel) }
@@ -681,10 +834,10 @@ fun AppointmentsScreen(api: VetCuraApi, auth: String) {
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             notice?.let { Text(it) }
             Button(onClick = {
-                val pet = petId.toIntOrNull()
+                val pet = selectedPet
                 val day = dateState.selectedDateMillis
                 error = when {
-                    pet == null -> "Ingresá el ID numérico de tu mascota."
+                    pet == null -> "Elegí tu mascota."
                     day == null -> "Elegí la fecha de la cita."
                     else -> null
                 }
@@ -701,7 +854,7 @@ fun AppointmentsScreen(api: VetCuraApi, auth: String) {
                             api.book(
                                 "Bearer $auth",
                                 AppointmentRequest(
-                                    pet!!,
+                                    pet!!.id,
                                     null,
                                     start.atZone(zone).toInstant().toString(),
                                     end.atZone(zone).toInstant().toString(),
@@ -894,8 +1047,28 @@ private fun friendlyStatus(status: String): String = when (status) {
     else -> status
 }
 
-private fun friendlyDateTime(iso: String): String = try {
-    val instant = java.time.Instant.parse(iso)
+private fun appointmentDay(iso: String): String = try {
+    java.time.Instant.parse(iso).atZone(java.time.ZoneId.systemDefault()).dayOfMonth.toString()
+} catch (_: Exception) {
+    "•"
+}
+
+private fun appointmentMonth(iso: String): String = try {
+    val month = java.time.Instant.parse(iso).atZone(java.time.ZoneId.systemDefault()).month
+    month.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale("es", "CO"))
+} catch (_: Exception) {
+    ""
+}
+
+private fun friendlyTime(iso: String): String = try {
+    val zoned = java.time.Instant.parse(iso).atZone(java.time.ZoneId.systemDefault())
+    java.text.SimpleDateFormat("hh:mm a", java.util.Locale("es", "CO"))
+        .format(java.util.Date.from(zoned.toInstant()))
+} catch (_: Exception) {
+    iso
+}
+
+private fun friendlyDateTime(iso: String): String = try {    val instant = java.time.Instant.parse(iso)
     val zoned = instant.atZone(java.time.ZoneId.systemDefault())
     java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
         .format(java.util.Date.from(zoned.toInstant()))
