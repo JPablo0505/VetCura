@@ -1,6 +1,8 @@
 node_modules/
 dist/
 build/
+.kotlin/
+.gradle/
 *.db
 *.db-journal
 *.db-wal
@@ -8,7 +10,6 @@ build/
 backend/data/
 .env
 coverage/
-.gradle/
 local.properties
 *.apk
 .DS_Store
