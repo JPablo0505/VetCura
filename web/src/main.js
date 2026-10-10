@@ -113,7 +113,7 @@ async function shell(activeNav) {
   }
   const me = meCache;
   const initials = me.display_name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
-  const today = new Date().toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' });
+  const today = new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' });
   const hash = location.hash || '#/dashboard';
   const links = NAV_ORDER.map((nav) => {
     const entry = Object.values(ROUTES).find((r) => r.nav === nav);

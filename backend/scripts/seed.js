@@ -36,7 +36,7 @@ function main() {
       "INSERT INTO users (email, password_hash, role, display_name) VALUES ('demo@vetcura.local', ?, 'owner', 'Demo Owner') RETURNING id",
     )
     .get(password).id;
-  db.prepare('INSERT INTO owners (user_id, phone) VALUES (?, ?)').run(demo, '+34 600 000 001');
+  db.prepare('INSERT INTO owners (user_id, phone) VALUES (?, ?)').run(demo, '+57 300 000 0001');
   const firulais = db
     .prepare(
       "INSERT INTO pets (owner_id, name, species, breed, birthdate, sex, weight_kg) VALUES (?, 'Firulais', 'dog', 'Mestizo', '2022-09-01', 'male', 15.0) RETURNING id",
@@ -45,8 +45,8 @@ function main() {
   db.prepare('INSERT INTO vaccinations (pet_id, vaccine, due_date) VALUES (?, ?, ?)').run(
     firulais, 'Rabia', new Date(Date.now() + 10 * 864e5).toISOString().slice(0, 10),
   );
-  db.prepare('INSERT INTO owners (user_id, phone) VALUES (?, ?)').run(owner1, '+34 600 111 222');
-  db.prepare('INSERT INTO owners (user_id, phone) VALUES (?, ?)').run(owner2, '+34 600 333 444');
+  db.prepare('INSERT INTO owners (user_id, phone) VALUES (?, ?)').run(owner1, '+57 300 111 2222');
+  db.prepare('INSERT INTO owners (user_id, phone) VALUES (?, ?)').run(owner2, '+57 300 333 4444');
 
   const rocky = db
     .prepare(

@@ -399,7 +399,7 @@ fun ProfileScreen(api: VetCuraApi, auth: String, onLogout: () -> Unit) {
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(14.dp)) {
                             Text("Factura #${i.id} · ${i.status}", fontWeight = FontWeight.Bold)
-                            Text("Total: ${(i.total_cents / 100.0)}")
+                            Text("Total: ${formatCOP(i.total_cents)}")
                         }
                     }
                 }
@@ -577,6 +577,13 @@ fun HistoryScreen(api: VetCuraApi, auth: String, petId: Int) {
         }
         else -> Unit
     }
+}
+
+// Colombian pesos, whole amounts ($ 6.545).
+private fun formatCOP(cents: Int): String {
+    val pesos = Math.round(cents / 100.0)
+    val grouped = java.text.NumberFormat.getInstance(java.util.Locale("es", "CO")).format(pesos)
+    return "$ $grouped"
 }
 
 private fun friendlyStatus(status: String): String = when (status) {

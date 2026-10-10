@@ -1,4 +1,4 @@
-import { api, clp } from '../api.js';
+import { api, cop } from '../api.js';
 
 const STATUS_LABEL = { draft: 'Borrador', issued: 'Emitida', paid: 'Pagada', void: 'Anulada' };
 
@@ -9,13 +9,13 @@ export async function BillingView(root) {
     const rows = invoices.invoices
       .map((i) => {
         const cls = i.status === 'paid' ? 'ok' : i.status === 'issued' ? 'info' : i.status === 'void' ? 'bad' : '';
-        return `<tr><td>#${i.id}</td><td>${i.owner_id}</td><td>${clp(i.total_cents)}</td><td><span class="badge ${cls}">${STATUS_LABEL[i.status] || i.status}</span></td>
+        return `<tr><td>#${i.id}</td><td>${i.owner_id}</td><td>${cop(i.total_cents)}</td><td><span class="badge ${cls}">${STATUS_LABEL[i.status] || i.status}</span></td>
           <td><button data-act="issued" data-id="${i.id}" class="secondary">Emitir</button>
           <button data-act="paid" data-id="${i.id}" class="secondary">Cobrar</button></td></tr>`;
       })
       .join('');
     const medOptions = meds.medications
-      .map((m) => `<option value="${m.id}">${m.name} — ${clp(m.price_cents)}</option>`)
+      .map((m) => `<option value="${m.id}">${m.name} — ${cop(m.price_cents)}</option>`)
       .join('');
     root.innerHTML = `
       <h1>Facturación</h1>

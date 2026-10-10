@@ -79,7 +79,7 @@ export async function PatientDetailView(root, id) {
     const consults = history.consultations
       .map(
         (c) =>
-          `<tr><td>${new Date(c.created_at).toLocaleString('es-CL')}</td><td>${c.vet_name}</td><td>${c.diagnosis}</td><td>${(c.allergies || []).join(', ') || '—'}</td></tr>`,
+          `<tr><td>${new Date(c.created_at).toLocaleString('es-CO')}</td><td>${c.vet_name}</td><td>${c.diagnosis}</td><td>${(c.allergies || []).join(', ') || '—'}</td></tr>`,
       )
       .join('');
     const vaccs = history.vaccinations

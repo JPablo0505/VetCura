@@ -1,4 +1,4 @@
-import { api, clp } from '../api.js';
+import { api, cop } from '../api.js';
 
 // Farmacia e Insumos (Trabajador.svg sidebar): catalog search + stock + add.
 export async function PharmacyView(root) {
@@ -9,7 +9,7 @@ export async function PharmacyView(root) {
       const rows = list.medications
         .map(
           (m) =>
-            `<tr><td><strong>${m.name}</strong></td><td>${m.kind === 'drug' ? 'Medicamento' : 'Insumo'}</td><td>${clp(m.price_cents)}</td><td>${m.stock}</td></tr>`,
+            `<tr><td><strong>${m.name}</strong></td><td>${m.kind === 'drug' ? 'Medicamento' : 'Insumo'}</td><td>${cop(m.price_cents)}</td><td>${m.stock}</td></tr>`,
         )
         .join('');
       root.innerHTML = `

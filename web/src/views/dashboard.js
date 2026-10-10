@@ -1,4 +1,4 @@
-import { api, clp } from '../api.js';
+import { api, cop } from '../api.js';
 import { ICONS } from '../main.js';
 
 function toCSV(rows) {
@@ -19,7 +19,7 @@ export async function DashboardView(root) {
       <h1>Dashboard de Eficiencia Operativa</h1>
       <p class="subtitle">Supervisión en vivo del rendimiento médico con datos reales del sistema.</p>
       <div class="cards">
-        <div class="card"><div class="icon-chip">${ICONS.billing}</div><div class="label">Ingresos (emitidas/pagadas)</div><div class="kpi">${clp(d.revenue_cents)}</div></div>
+        <div class="card"><div class="icon-chip">${ICONS.billing}</div><div class="label">Ingresos (emitidas/pagadas)</div><div class="kpi">${cop(d.revenue_cents)}</div></div>
         <div class="card"><div class="icon-chip">${ICONS.agenda}</div><div class="label">Citas atendidas</div><div class="kpi">${d.attended}</div><div class="progress"><i style="width:${d.attended + d.pending === 0 ? 0 : Math.round((100 * d.attended) / (d.attended + d.pending))}%"></i></div></div>
         <div class="card"><div class="icon-chip">${ICONS.consult}</div><div class="label">Citas pendientes</div><div class="kpi">${d.pending}</div></div>
       </div>

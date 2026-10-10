@@ -10,11 +10,12 @@ export function setToken(t) {
   else localStorage.removeItem('vetcura_token');
 }
 
-// Chilean pesos without decimals, as in the mockups ($3.485.000).
-export function clp(cents) {
-  return new Intl.NumberFormat('es-CL', {
+// Colombian pesos without decimals ($ 6.545). Amounts are stored as
+// integer minor units and displayed rounded to whole pesos.
+export function cop(cents) {
+  return new Intl.NumberFormat('es-CO', {
     style: 'currency',
-    currency: 'CLP',
+    currency: 'COP',
     maximumFractionDigits: 0,
   }).format(Math.round(cents / 100));
 }

@@ -40,8 +40,8 @@ export async function AgendaView(root) {
     const { from, to, monday, span } = rangeFor(mode, anchor);
     const title =
       mode === 'day'
-        ? anchor.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })
-        : `Semana del ${monday.toLocaleDateString('es-CL', { day: 'numeric', month: 'long' })}`;
+        ? anchor.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })
+        : `Semana del ${monday.toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })}`;
     root.innerHTML = '<h1>Agenda Semanal</h1><p>Cargando citas…</p>';
     try {
       const [list, vets] = await Promise.all([
@@ -50,7 +50,7 @@ export async function AgendaView(root) {
       ]);
       const byDay = new Map();
       for (const a of list.appointments) {
-        const key = new Date(a.starts_at).toLocaleDateString('es-CL');
+        const key = new Date(a.starts_at).toLocaleDateString('es-CO');
         if (!byDay.has(key)) byDay.set(key, []);
         byDay.get(key).push(a);
       }
@@ -59,17 +59,17 @@ export async function AgendaView(root) {
       const n = mode === 'day' ? 1 : span;
       for (let i = 0; i < n; i += 1) {
         const d = new Date(start + i * 864e5);
-        const key = d.toLocaleDateString('es-CL');
+        const key = d.toLocaleDateString('es-CO');
         const chips = (byDay.get(key) || [])
           .map((a) => {
             const next = NEXT[a.status];
             return `<button class="chip-appt st-${a.status}" data-id="${a.id}" data-next="${next || ''}" title="${next ? `Avanzar a ${STATUS_LABEL[next]} (clic)` : STATUS_LABEL[a.status] || a.status}">
-              <strong>${a.pet_name}</strong><small>${new Date(a.starts_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })} · ${a.reason || 'Sin motivo'}</small>
+              <strong>${a.pet_name}</strong><small>${new Date(a.starts_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })} · ${a.reason || 'Sin motivo'}</small>
               <small>${STATUS_LABEL[a.status] || a.status}${next ? ' →' : ''}</small>
             </button>`;
           })
           .join('');
-        days.push(`<div class="day-col"><h4>${d.toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric' })}</h4><div class="count">${(byDay.get(key) || []).length} citas</div>${chips || '<div class="empty">—</div>'}</div>`);
+        days.push(`<div class="day-col"><h4>${d.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' })}</h4><div class="count">${(byDay.get(key) || []).length} citas</div>${chips || '<div class="empty">—</div>'}</div>`);
       }
       const vetOptions = vets.vets.map((v) => `<option value="${v.id}">${v.display_name}</option>`).join('');
       root.innerHTML = `

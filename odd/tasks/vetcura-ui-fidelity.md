@@ -4,7 +4,7 @@
 
 Redesign navigation and screens on both clients to mirror the Mockups/
 structure (sidebar/topbar/cards on web; bottom tabs/home on Android),
-reusing the mockups' embedded photos, with CLP currency.
+reusing the mockups' embedded photos, with COP currency (Colombia).
 
 ## Visual source (inspected 2026-10-10 via local render)
 
@@ -32,7 +32,7 @@ reusing the mockups' embedded photos, with CLP currency.
   mockup-style login, KPI cards + staff table (real data), daily CSV
   report download (real data), week/day/month agenda grid with status
   colors + chip actions, pet photo cards, consultation 3-phase layout
-  with weight sparkline (real data), CLP formatting, extracted photos.
+  with weight sparkline (real data), COP formatting, extracted photos.
 - Android: 4 bottom tabs (Mascotas/Historial/Citas/Perfil) with icons,
   greeting, alert card (Ver detalle), photo pet cards, services tiles
   backed by real endpoints, upcoming appointment cards, styled login,
