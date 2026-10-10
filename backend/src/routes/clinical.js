@@ -62,6 +62,10 @@ function buildClinicalRoutes(db) {
       for (const allergy of body.allergies) insertAllergy.run(id, allergy);
       if (body.weight_kg) {
         db.prepare('UPDATE pets SET weight_kg = ? WHERE id = ?').run(body.weight_kg, body.pet_id);
+        // Mirror into the append-only measurement timeline.
+        db.prepare(
+          "INSERT INTO pet_weight_measurements (pet_id, weight_kg, measured_at, source) VALUES (?, ?, date('now'), 'consultation')",
+        ).run(body.pet_id, body.weight_kg);
       }
       res.status(201).json({ consultation: { id, ...body, vet_user_id: req.user.sub } });
     } catch (err) {

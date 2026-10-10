@@ -3,6 +3,9 @@ const { z } = require('zod');
 const { validate } = require('../lib/validate');
 const { apiError } = require('../lib/errors');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const { upload, saveUpload, multerErrorHandler } = require('../lib/uploads');
+const { serveUpload } = require('./profile');
+const { audit } = require('../lib/audit');
 
 const STAFF = ['admin', 'vet', 'staff'];
 
@@ -26,7 +29,7 @@ const petSchema = z.object({
   photo_url: z.string().max(1000).nullable().optional(),
 });
 
-const petPatchSchema = petSchema.omit({ owner_id: true }).partial();
+const petPatchSchema = petSchema.omit({ owner_id: true }).partial().strict();
 
 function ownerIdFor(db, user) {
   if (user.role !== 'owner') return null;
@@ -154,24 +157,87 @@ function buildOwnerPetRoutes(db) {
       const vaccinations = db
         .prepare('SELECT * FROM vaccinations WHERE pet_id = ? ORDER BY due_date')
         .all(pet.id);
-      res.json({ pet: full, vaccinations });
+      const measurements = db
+        .prepare('SELECT weight_kg, measured_at AS date, source FROM pet_weight_measurements WHERE pet_id = ? ORDER BY measured_at DESC, id DESC LIMIT 50')
+        .all(pet.id);
+      res.json({ pet: full, vaccinations, measurements });
     } catch (err) {
       next(err);
     }
   });
 
-  router.patch('/pets/:id', requireRole(...STAFF), (req, res, next) => {
+  router.get('/pets/:id/measurements', (req, res, next) => {
+    try {
+      const pet = petVisibleTo(db, Number(req.params.id), req.user);
+      if (pet === null) throw apiError('not_found', 'Pet not found', 404);
+      if (pet === undefined) throw apiError('forbidden', 'Not your pet', 403);
+      const rows = db
+        .prepare('SELECT weight_kg, measured_at AS date, source FROM pet_weight_measurements WHERE pet_id = ? ORDER BY measured_at, id')
+        .all(pet.id);
+      res.json({ measurements: rows });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Owners edit their OWN pets; staff edit any. owner_id is never
+  // writable (ownership derives from the session, never the client).
+  // weight_kg appends a dated measurement instead of rewriting history.
+  router.patch('/pets/:id', (req, res, next) => {
     try {
       const id = Number(req.params.id);
-      const exists = db.prepare('SELECT id FROM pets WHERE id = ?').get(id);
-      if (!exists) throw apiError('not_found', 'Pet not found', 404);
+      const pet = petVisibleTo(db, id, req.user);
+      if (pet === null) throw apiError('not_found', 'Pet not found', 404);
+      if (pet === undefined) throw apiError('forbidden', 'Not your pet', 403);
       const body = validate(petPatchSchema, req.body);
-      const fields = Object.entries(body).filter(([, v]) => v !== undefined);
+      const { weight_kg: weight, ...rest } = body;
+      const fields = Object.entries(rest).filter(([, v]) => v !== undefined);
       if (fields.length > 0) {
         const set = fields.map(([k]) => `${k} = ?`).join(', ');
-        db.prepare(`UPDATE pets SET ${set} WHERE id = ?`).run(...fields.map(([, v]) => v), id);
+        db.prepare(`UPDATE pets SET ${set}, updated_at = datetime('now') WHERE id = ?`)
+          .run(...fields.map(([, v]) => v), id);
       }
-      res.json({ pet: db.prepare('SELECT * FROM pets WHERE id = ?').get(id) });
+      let measurement = null;
+      if (weight !== undefined && weight !== null) {
+        const today = new Date().toISOString().slice(0, 10);
+        const created = db.prepare(
+          "INSERT INTO pet_weight_measurements (pet_id, weight_kg, measured_at, source) VALUES (?, ?, ?, 'manual')",
+        ).run(id, weight, today);
+        db.prepare('UPDATE pets SET weight_kg = ?, updated_at = datetime(\'now\') WHERE id = ?').run(weight, id);
+        measurement = { id: Number(created.lastInsertRowid), weight_kg: weight, date: today };
+      }
+      audit(db, { actor: req.user.sub, action: 'pet.update', targetType: 'pet', targetId: id });
+      res.json({ pet: db.prepare('SELECT * FROM pets WHERE id = ?').get(id), measurement });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/pets/:id/photo', upload.single('photo'), multerErrorHandler, (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      const pet = petVisibleTo(db, id, req.user);
+      if (pet === null) throw apiError('not_found', 'Pet not found', 404);
+      if (pet === undefined) throw apiError('forbidden', 'Not your pet', 403);
+      if (!req.file) throw apiError('validation_error', 'Missing photo file (field: photo)', 400);
+      const saved = saveUpload(`pet-${id}`, req.file.buffer);
+      db.prepare('UPDATE pets SET photo_path = ?, updated_at = datetime(\'now\') WHERE id = ?').run(saved.filename, id);
+      audit(db, { actor: req.user.sub, action: 'pet.photo.update', targetType: 'pet', targetId: id });
+      res.status(201).json({ photo: saved.filename });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get('/pets/:id/photo', (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      const pet = petVisibleTo(db, id, req.user);
+      if (pet === null) throw apiError('not_found', 'Pet not found', 404);
+      if (pet === undefined) throw apiError('forbidden', 'Not your pet', 403);
+      const row = db.prepare('SELECT photo_path FROM pets WHERE id = ?').get(id);
+      if (!row || !row.photo_path) throw apiError('not_found', 'No photo on file', 404);
+      return serveUpload(res, row.photo_path, next);
     } catch (err) {
       next(err);
     }
