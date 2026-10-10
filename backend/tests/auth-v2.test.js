@@ -38,8 +38,10 @@ const GOOGLE = {
   'unverified-new-token': { sub: 'google-sub-3', email: 'shady@example.com', email_verified: false, name: 'Shady' },
   'expired-id-token': { throwCode: 'invalid_google_token' },
   'mismatch-mail-token': { sub: 'google-sub-4', email: 'someone-else@example.com', email_verified: true, name: 'Else' },
-  'dupe-sub-id-token': { sub: 'google-sub-1', email: 'x@t.local', email_verified: true, name: 'Other' },
+  'dupe-sub-id-token': { sub: 'google-sub-2', email: 'x@t.local', email_verified: true, name: 'Other' },
   'link-other-id-token': { sub: 'google-sub-9', email: 'x@t.local', email_verified: true, name: 'Other' },
+  'claim-pending-token': { sub: 'google-sub-10', email: 'pending@example.com', email_verified: true, name: 'Pending' },
+  'claim-unverified-token': { sub: 'google-sub-11', email: 'pending@example.com', email_verified: false, name: 'Pending' },
 };
 
 async function api(method, path, token, body) {
@@ -69,6 +71,9 @@ before(async () => {
   const other = db
     .prepare("INSERT INTO users (email, password_hash, role, display_name) VALUES ('x@t.local', ?, 'owner', 'Other') RETURNING id")
     .get(hash).id;
+  const admin = db
+    .prepare("INSERT INTO users (email, password_hash, role, display_name) VALUES ('admin@t.local', ?, 'admin', 'Admin') RETURNING id")
+    .get(hash).id;
   const vet = db
     .prepare("INSERT INTO users (email, password_hash, role, display_name) VALUES ('v@t.local', ?, 'vet', 'Vet') RETURNING id")
     .get(hash).id;
@@ -88,6 +93,7 @@ before(async () => {
     owner: await login('o@t.local'),
     other: await login('x@t.local'),
     vet: await login('v@t.local'),
+    admin: await login('admin@t.local'),
   };
 });
 
@@ -117,20 +123,40 @@ describe('google verification contract', () => {
     }
   });
 
-  it('creates an owner for verified unknown identities (keyed by sub)', async () => {
+  it('rejects unknown emails: closed registration, nothing created', async () => {
     const r = await api('POST', '/auth/google', null, { id_token: 'valid-new-id-token' });
+    assert.equal(r.status, 403);
+    assert.equal(r.json.error.code, 'registration_required');
+    const row = db.prepare('SELECT id FROM users WHERE email = ?').get('newowner@example.com');
+    assert.equal(row, undefined);
+  });
+
+  it('claims a staff-registered pending account on first verified touch', async () => {
+    const created = await api('POST', '/owners', global.tokens.admin.token, {
+      display_name: 'Pending',
+      email: 'pending@example.com',
+    });
+    assert.equal(created.status, 201);
+    const r = await api('POST', '/auth/google', null, { id_token: 'claim-pending-token' });
     assert.equal(r.status, 200);
     assert.equal(r.json.user.role, 'owner');
     assert.ok(r.json.token && r.json.refreshToken);
-    const row = db.prepare('SELECT google_sub FROM users WHERE email = ?').get('newowner@example.com');
-    assert.equal(row.google_sub, 'google-sub-1');
+    const row = db.prepare('SELECT google_sub FROM users WHERE email = ?').get('pending@example.com');
+    assert.equal(row.google_sub, 'google-sub-10');
     global.googleUserId = r.json.user.id;
   });
 
   it('logs in again through the linked sub', async () => {
-    const r = await api('POST', '/auth/google', null, { id_token: 'valid-new-id-token' });
+    const r = await api('POST', '/auth/google', null, { id_token: 'claim-pending-token' });
     assert.equal(r.status, 200);
     assert.equal(r.json.user.id, global.googleUserId);
+  });
+
+  it('rejects unverified tokens even for pending accounts', async () => {
+    const r = await api('POST', '/auth/google', null, { id_token: 'claim-unverified-token' });
+    assert.equal(r.status, 401);
+    const row = db.prepare('SELECT google_sub FROM users WHERE email = ?').get('pending@example.com');
+    assert.equal(row.google_sub, 'google-sub-10');
   });
 
   it('never auto-links a known email: 409 without persisting', async () => {
@@ -143,9 +169,10 @@ describe('google verification contract', () => {
     assert.equal(after.google_sub, null);
   });
 
-  it('rejects unverified emails for new accounts', async () => {
+  it('rejects unknown emails even when unverified (registration first)', async () => {
     const r = await api('POST', '/auth/google', null, { id_token: 'unverified-new-token' });
-    assert.equal(r.status, 401);
+    assert.equal(r.status, 403);
+    assert.equal(r.json.error.code, 'registration_required');
   });
 });
 

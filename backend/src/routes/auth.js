@@ -86,13 +86,16 @@ function buildAuthRoutes(db, options = {}) {
     }
   });
 
-  // Google Sign-In. Secure policy (see odd/tasks/vetcura-v02*):
+  // Google Sign-In, CLOSED registration (approved business policy):
   // - token cryptographically verified (signature, issuer, expiry, audience);
   // - identity keyed by stable `sub`, never by email coincidence;
-  // - a known email WITHOUT a linked sub is NOT auto-linked: the client
-  //   gets 409 link_verification_required and must prove account control
-  //   via PUT /auth/google/link (own session) or POST /auth/google/link
-  //   (password proof). Staff/admin roles can never change through Google.
+  // - unknown emails are REJECTED (403 registration_required): the clinic
+  //   registers owners first; nobody self-creates through Google;
+  // - first touch on a pending account (no password, no sub yet) attaches
+  //   the sub: a verified Google token for that same address IS the proof
+  //   of control. Accounts that already have a password keep the explicit
+  //   link flows (409 link_verification_required);
+  // - staff/admin roles can never change through Google.
   router.post('/google', sensitive, async (req, res, next) => {
     try {
       const { id_token: idToken } = validate(googleSchema, req.body);
@@ -107,31 +110,41 @@ function buildAuthRoutes(db, options = {}) {
         audit(db, { actor: bySub.id, action: 'auth.login', targetType: 'user', targetId: bySub.id, meta: { provider: 'google' } });
         return res.json(sessionFor(bySub));
       }
-      if (info.email) {
-        const existing = db
-          .prepare('SELECT id, role FROM users WHERE email = ?')
-          .get(info.email);
-        if (existing) {
-          return res.status(409).json({
-            error: {
-              code: 'link_verification_required',
-              message: 'An account with this email exists. Prove control of it to link Google Sign-In.',
-            },
-          });
-        }
+      const existing = info.email
+        ? db.prepare('SELECT id, email, role, password_hash, google_sub FROM users WHERE email = ?').get(info.email)
+        : null;
+      if (!existing) {
+        return res.status(403).json({
+          error: {
+            code: 'registration_required',
+            message: 'This account is not registered at the clinic yet. Please contact reception.',
+          },
+        });
       }
-      if (!info.email || !info.email_verified) {
+      if (existing.role !== 'owner') {
+        throw apiError('forbidden', 'Google Sign-In is restricted to pet owners', 403);
+      }
+      if (existing.google_sub && existing.google_sub !== info.sub) {
         throw apiError('invalid_google_token', 'Google token rejected', 401);
       }
-      const created = db
-        .prepare(
-          "INSERT INTO users (email, role, google_sub, display_name, email_verified_at) VALUES (?, 'owner', ?, ?, datetime('now')) RETURNING id, email, role, display_name",
-        )
-        .get(info.email, info.sub, info.name || 'Owner');
-      db.prepare('INSERT INTO owners (user_id) VALUES (?)').run(created.id);
-      db.prepare('INSERT INTO notification_prefs (user_id) VALUES (?)').run(created.id);
-      audit(db, { actor: created.id, action: 'auth.google.signup', targetType: 'user', targetId: created.id });
-      return res.json(sessionFor(created));
+      if (!info.email_verified || info.email !== existing.email.toLowerCase()) {
+        throw apiError('invalid_google_token', 'Google token rejected', 401);
+      }
+      if (existing.password_hash) {
+        return res.status(409).json({
+          error: {
+            code: 'link_verification_required',
+            message: 'An account with this email exists. Prove control of it to link Google Sign-In.',
+          },
+        });
+      }
+      // Pending account (registered by staff, no credentials yet): the
+      // verified token claims it on first touch.
+      attachGoogleSub(db, existing.id, info.sub);
+      db.prepare('UPDATE users SET email_verified_at = COALESCE(email_verified_at, datetime(\'now\')) WHERE id = ?').run(existing.id);
+      audit(db, { actor: existing.id, action: 'auth.google.claim', targetType: 'user', targetId: existing.id });
+      const claimed = db.prepare('SELECT id, email, role, display_name FROM users WHERE id = ?').get(existing.id);
+      return res.json(sessionFor(claimed));
     } catch (err) {
       return next(err);
     }
