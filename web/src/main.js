@@ -67,7 +67,7 @@ function LoginView(root) {
         method: 'POST',
         body: { email: fd.get('email'), password: fd.get('password') },
       });
-      setToken(r.token);
+      setToken(r.token, r.refreshToken);
       meCache = null;
       location.hash = '#/dashboard';
     } catch (err) {
@@ -169,4 +169,9 @@ async function shell(activeNav) {
 }
 
 window.addEventListener('hashchange', router);
+window.addEventListener('vetcura:logout', () => {
+  meCache = null;
+  location.hash = '#/dashboard';
+  router();
+});
 router();
