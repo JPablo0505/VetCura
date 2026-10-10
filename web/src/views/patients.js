@@ -200,12 +200,14 @@ export async function PatientDetailView(root, id) {
     loadAuthPhoto(root.querySelector('#pet-photo'), `/pets/${id}/photo`);
     root.querySelector('#photo').onsubmit = async (e) => {
       e.preventDefault();
-      const file = e.target.photo.files[0];
-      if (!file) return;
-      const fd = new FormData();
-      fd.append('photo', file);
+      const picked = e.target.querySelector('input[type=file]').files[0];
+      if (!picked) {
+        msg().innerHTML = '<div class="alert error">Elegí un archivo de imagen primero.</div>';
+        return;
+      }
       try {
-        await api(`/pets/${id}/photo`, { method: 'POST', body: fd });
+        // Straight from the form: field names come from the inputs themselves.
+        await api(`/pets/${id}/photo`, { method: 'POST', body: new FormData(e.target) });
         msg().innerHTML = '<div class="alert info">Foto actualizada.</div>';
         PatientDetailView(root, id);
       } catch (err) {
