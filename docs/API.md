@@ -46,7 +46,8 @@ Errors: `{ error: { code, message } }` with 400 validation_error,
 
 - `GET /appointments[?from&to]` (owners scoped) · `POST /appointments
   {pet_id, vet_user_id?, starts_at, ends_at, reason?}` — 409 on vet
-  overlap; owners may book their own pets.
+  overlap; 409 `unavailable` outside the vet's working hours when a vet
+  is assigned; no vet = triage (no hours check).
 - `PATCH /appointments/:id/status {status}` (staff) — machine:
   scheduled→checked_in|cancelled|no_show,
   checked_in→done|cancelled|no_show (terminal otherwise).
@@ -66,7 +67,7 @@ Errors: `{ error: { code, message } }` with 400 validation_error,
 
 ## Catalog
 
-- `GET /vets` (staff) · `GET /medications[?q]` ·
+- `GET /vets` (any authenticated user: names for booking) · `GET /medications[?q]` ·
   `POST /medications {name, kind: drug|supply, price_cents, stock}`
   (admin/vet).
 
@@ -82,8 +83,17 @@ Errors: `{ error: { code, message } }` with 400 validation_error,
 - `DELETE /invoices/:id/items/:itemId` (draft only) ·
   `PATCH /invoices/:id/status` — draft→issued|void, issued→paid|void.
 
-## Notifications (prefs-gated, minimal payloads, no clinical detail)
+## Vet availability & slots (weekday 0–6 UTC, minutes since midnight)
 
+- `GET /vets/:id/availability` (staff) ·
+  `POST /vets/:id/availability {weekday, start: HH:MM, end: HH:MM}`
+  (admin/staff; 409 on duplicate start) ·
+  `DELETE /availability/:id` (admin/staff).
+- `GET /vets/:id/slots?date=YYYY-MM-DD[&slot_min=30]` (any auth user):
+  free slots inside working hours minus booked appointments; past
+  times excluded. Unknown vet → 404.
+
+## Notifications (prefs-gated, minimal payloads, no clinical detail)
 - `GET/PATCH /me/preferences` — push/email/appointment/vaccination.
 - `GET /me/devices` · `POST /me/devices {fcm_token}` (caller-owned;
   409 if another account holds it) · `DELETE /me/devices/:id` (own).
