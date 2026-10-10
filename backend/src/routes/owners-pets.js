@@ -5,6 +5,7 @@ const { apiError } = require('../lib/errors');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { upload, saveUpload, multerErrorHandler } = require('../lib/uploads');
 const { serveUpload } = require('./profile');
+const { ensurePrefs } = require('./profile');
 const { audit } = require('../lib/audit');
 
 const STAFF = ['admin', 'vet', 'staff'];
@@ -52,7 +53,8 @@ function buildOwnerPetRoutes(db) {
     try {
       const rows = db
         .prepare(
-          `SELECT u.id AS user_id, u.email, u.display_name, o.phone, o.address
+          `SELECT u.id AS user_id, u.email, u.display_name, o.phone, o.address,
+                  CASE WHEN u.email_verified_at IS NULL THEN 0 ELSE 1 END AS email_verified
            FROM owners o JOIN users u ON u.id = o.user_id ORDER BY u.display_name`,
         )
         .all();
@@ -105,7 +107,7 @@ function buildOwnerPetRoutes(db) {
         .get(id);
       if (!owner) throw apiError('not_found', 'Owner not found', 404);
       const pets = db.prepare('SELECT * FROM pets WHERE owner_id = ? ORDER BY name').all(id);
-      res.json({ owner, pets });
+      res.json({ owner, pets, preferences: ensurePrefs(db, id) });
     } catch (err) {
       next(err);
     }
