@@ -97,6 +97,10 @@ data class InvoicesResponse(val invoices: List<Invoice>)
 data class InvoiceResponse(val invoice: Invoice)
 data class Alert(val id: Int, val pet_id: Int, val pet_name: String, val vaccine: String, val due_date: String, val overdue: Boolean)
 data class AlertsResponse(val alerts: List<Alert>)
+data class Vet(val id: Int, val email: String, val display_name: String)
+data class VetsResponse(val vets: List<Vet>)
+data class Slot(val starts_at: String, val ends_at: String)
+data class SlotsResponse(val vet_id: Int, val date: String, val slot_min: Int, val slots: List<Slot>)
 data class MeResponse(val user: User)
 data class Owner(val user_id: Int, val email: String, val display_name: String, val phone: String?, val address: String?, val email_verified: Int = 0, val photo_path: String? = null)
 data class OwnerDetailResponse(val owner: Owner, val pets: List<Pet>)
@@ -150,6 +154,8 @@ interface VetCuraApi {
     @GET("appointments") suspend fun appointments(@Header("Authorization") auth: String): AppointmentsResponse
     @POST("appointments") suspend fun book(@Header("Authorization") auth: String, @Body body: AppointmentRequest): Map<String, Appointment>
     @GET("vaccinations/alerts") suspend fun alerts(@Header("Authorization") auth: String): AlertsResponse
+    @GET("vets") suspend fun vets(@Header("Authorization") auth: String): VetsResponse
+    @GET("vets/{id}/slots") suspend fun slots(@Header("Authorization") auth: String, @Path("id") id: Int, @Query("date") date: String): SlotsResponse
     @GET("invoices") suspend fun invoices(@Header("Authorization") auth: String): InvoicesResponse
     @GET("invoices/{id}") suspend fun invoice(@Header("Authorization") auth: String, @Path("id") id: Int): InvoiceResponse
     @GET("me/devices") suspend fun devices(@Header("Authorization") auth: String): DevicesResponse

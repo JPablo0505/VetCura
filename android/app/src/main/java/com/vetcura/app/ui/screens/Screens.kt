@@ -45,9 +45,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -801,12 +799,14 @@ fun AppointmentsScreen(api: VetCuraApi, auth: String) {
     var myPets by remember { mutableStateOf<List<com.vetcura.app.data.Pet>>(emptyList()) }
     var selectedPet by remember { mutableStateOf<com.vetcura.app.data.Pet?>(null) }
     var petMenu by remember { mutableStateOf(false) }
+    var vets by remember { mutableStateOf<List<com.vetcura.app.data.Vet>>(emptyList()) }
+    var selectedVet by remember { mutableStateOf<com.vetcura.app.data.Vet?>(null) }
+    var vetMenu by remember { mutableStateOf(false) }
+    var slots by remember { mutableStateOf<List<com.vetcura.app.data.Slot>>(emptyList()) }
+    var selectedSlot by remember { mutableStateOf<com.vetcura.app.data.Slot?>(null) }
     var reason by remember { mutableStateOf("") }
     var showDate by remember { mutableStateOf(false) }
-    var showTime by remember { mutableStateOf(false) }
-    var durationMin by remember { mutableStateOf(30) }
     val dateState = rememberDatePickerState()
-    val timeState = rememberTimePickerState(initialHour = 10, initialMinute = 0, is24Hour = true)
     val scope = rememberCoroutineScope()
 
     suspend fun refresh() {
@@ -814,8 +814,10 @@ fun AppointmentsScreen(api: VetCuraApi, auth: String) {
             kotlinx.coroutines.coroutineScope {
                 val apptD = async { api.appointments("Bearer $auth").appointments }
                 val petsD = async { api.pets("Bearer $auth").pets }
+                val vetsD = async { api.vets("Bearer $auth").vets }
                 items = apptD.await()
                 myPets = petsD.await()
+                vets = vetsD.await()
             }
             if (selectedPet == null) selectedPet = myPets.firstOrNull()
         } catch (e: Exception) {
@@ -824,11 +826,28 @@ fun AppointmentsScreen(api: VetCuraApi, auth: String) {
     }
     LaunchedEffect(auth) { refresh() }
 
+    // Free slots follow the chosen vet + date (vet schedule minus bookings).
+    LaunchedEffect(selectedVet, dateState.selectedDateMillis) {
+        selectedSlot = null
+        val vet = selectedVet
+        val day = dateState.selectedDateMillis
+        if (vet == null || day == null) {
+            slots = emptyList()
+        } else {
+            try {
+                val zone = java.time.ZoneId.systemDefault()
+                val localDay = java.time.Instant.ofEpochMilli(day).atZone(zone).toLocalDate()
+                slots = api.slots("Bearer $auth", vet.id, localDay.toString()).slots
+            } catch (_: Exception) {
+                slots = emptyList()
+            }
+        }
+    }
+
     val dateLabel = dateState.selectedDateMillis?.let { millis ->
         java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault())
             .format(java.util.Date(millis))
     } ?: "Elegir fecha"
-    val timeLabel = "%02d:%02d".format(timeState.hour, timeState.minute)
 
     if (showDate) {
         DatePickerDialog(
@@ -837,13 +856,6 @@ fun AppointmentsScreen(api: VetCuraApi, auth: String) {
         ) {
             DatePicker(state = dateState)
         }
-    }
-    if (showTime) {
-        AlertDialog(
-            onDismissRequest = { showTime = false },
-            confirmButton = { TextButton(onClick = { showTime = false }) { Text("Aceptar") } },
-            text = { TimePicker(state = timeState) },
-        )
     }
 
     LazyColumn(
@@ -871,17 +883,44 @@ fun AppointmentsScreen(api: VetCuraApi, auth: String) {
                 }
             }
             OutlinedTextField(reason, { reason = it }, label = { Text("Motivo") })
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { showDate = true }) { Text(dateLabel) }
-                OutlinedButton(onClick = { showTime = true }) { Text(timeLabel) }
+            ExposedDropdownMenuBox(expanded = vetMenu, onExpandedChange = { vetMenu = it }) {
+                OutlinedTextField(
+                    selectedVet?.display_name ?: "Elegí el doctor",
+                    {},
+                    readOnly = true,
+                    label = { Text("Doctor") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(vetMenu) },
+                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                )
+                ExposedDropdownMenu(expanded = vetMenu, onDismissRequest = { vetMenu = false }) {
+                    vets.forEach { vet ->
+                        DropdownMenuItem(
+                            text = { Text(vet.display_name) },
+                            onClick = { selectedVet = vet; vetMenu = false },
+                        )
+                    }
+                }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Duración:", modifier = Modifier.padding(top = 12.dp))
-                listOf(30, 60).forEach { mins ->
-                    if (mins == durationMin) {
-                        Button(onClick = {}) { Text("$mins min") }
-                    } else {
-                        OutlinedButton(onClick = { durationMin = mins }) { Text("$mins min") }
+                OutlinedButton(onClick = { showDate = true }) { Text(dateLabel) }
+            }
+            if (selectedVet != null && dateState.selectedDateMillis != null) {
+                Text(
+                    if (slots.isEmpty()) "Sin horas libres ese día." else "Horas libres:",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                slots.chunked(3).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        row.forEach { slot ->
+                            val chosen = slot == selectedSlot
+                            if (chosen) {
+                                Button(onClick = {}) { Text(friendlyTime(slot.starts_at)) }
+                            } else {
+                                OutlinedButton(onClick = { selectedSlot = slot }) {
+                                    Text(friendlyTime(slot.starts_at))
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -889,34 +928,29 @@ fun AppointmentsScreen(api: VetCuraApi, auth: String) {
             notice?.let { Text(it) }
             Button(onClick = {
                 val pet = selectedPet
-                val day = dateState.selectedDateMillis
+                val slot = selectedSlot
                 error = when {
                     pet == null -> "Elegí tu mascota."
-                    day == null -> "Elegí la fecha de la cita."
+                    selectedVet == null -> "Elegí el doctor."
+                    slot == null -> "Elegí una hora libre."
                     else -> null
                 }
                 if (error == null) {
-                    val zone = java.time.ZoneId.systemDefault()
-                    val localDay = java.time.Instant.ofEpochMilli(day!!).atZone(zone).toLocalDate()
-                    val start = java.time.LocalDateTime.of(
-                        localDay,
-                        java.time.LocalTime.of(timeState.hour, timeState.minute),
-                    )
-                    val end = start.plusMinutes(durationMin.toLong())
                     scope.launch {
                         try {
                             api.book(
                                 "Bearer $auth",
                                 AppointmentRequest(
                                     pet!!.id,
-                                    null,
-                                    start.atZone(zone).toInstant().toString(),
-                                    end.atZone(zone).toInstant().toString(),
+                                    selectedVet!!.id,
+                                    slot!!.starts_at,
+                                    slot.ends_at,
                                     reason.ifBlank { null },
                                 ),
                             )
-                            notice = "Cita solicitada para el $dateLabel a las $timeLabel."
+                            notice = "Cita solicitada para el $dateLabel a las ${friendlyTime(slot.starts_at)} con ${selectedVet!!.display_name}."
                             reason = ""
+                            selectedSlot = null
                             refresh()
                         } catch (e: Exception) {
                             error = "No se pudo solicitar la cita: ${friendlyError(e)}"
