@@ -42,3 +42,22 @@ server totals.
 SVGs render as-is in web (`<img>`); photos stay embedded. Icons must be
 hand-extracted (outlines carry no semantics) — only where needed; no
 emoji substitutions. Originals never overwritten.
+
+## UI fidelity pass (2026-10-10, feature `vetcura-ui-fidelity`)
+
+All five mockups were rendered and inspected pixel by pixel. Tabs and
+structure mirror them on both clients; every screen without backend
+support was cut instead of simulated:
+
+| Mockup element | Implementation | Evidence |
+| -------------- | -------------- | -------- |
+| Web dark-teal sidebar + 5 items | Real nav (Eficiencia, Consulta, Agenda, Pacientes, Farmacia) + Facturación (superset, documented) | `web/src/main.js` |
+| Web topbar search/user/date | Live patient search, `/auth/me` chip, real date | `web/src/main.js` |
+| Login screen | Mirrored; clinic-ID anonymous access → email login | `web/src/main.js` LoginView |
+| Dashboard KPIs + staff table | Real data only; CSV daily report from real endpoints | `web/src/views/dashboard.js` |
+| Agenda week/day/month + legend | Real ranges; chip click advances status via PATCH | `web/src/views/agenda.js` |
+| Pet cards + clinical 3 phases | Extracted pet-only photos; weight sparkline from real history | `web/src/views/patients.js` |
+| Totals + IVA 19% + CLP | `TAX_RATE` default 0.19; `clp()` formatting | backend + `web/src/api.js` |
+| Android 4 tabs + home + login | Mascotas/Historial/Citas/Perfil with icons; greeting, alert card, photo cards, service tiles (real endpoints only) | `android/…/MainActivity.kt`, `Screens.kt` |
+| Cut (no backend): boxes, triage/check-in, chip, satisfaction, branches, charts, SOS, Laboratorio, SII, payment methods, vitals, Confirmar Asistencia, anonymous pet-ID login, fake deltas | Absent from UI; listed in `odd/tasks/vetcura-ui-fidelity.md` | — |
+| Photos | 11 unique JPEGs extracted hash-deduped to `web/public/img/pet-N.jpg`; pet-only subset (1/7/8/11, cats→siamese) on web cards and Android drawables; staff portraits never used as patients | `web/public/img/`, `android/…/res/drawable/` |
