@@ -1,4 +1,22 @@
-import { api, petPhoto } from '../api.js';
+import { api, petPhoto, API_URL, token } from '../api.js';
+
+// Authenticated image: private photos travel with the Bearer token,
+// never through public URLs.
+async function loadAuthPhoto(img, path) {
+  try {
+    const res = await fetch(`${API_URL}${path}`, {
+      headers: { Authorization: `Bearer ${token()}` },
+    });
+    if (!res.ok) {
+      img.alt = 'Sin foto registrada';
+      img.style.display = 'none';
+      return;
+    }
+    img.src = URL.createObjectURL(await res.blob());
+  } catch {
+    img.style.display = 'none';
+  }
+}
 
 export async function PatientsView(root, q = '') {
   root.innerHTML = '<h1>Pacientes e Historial</h1><p>Cargando…</p>';
@@ -137,6 +155,15 @@ export async function PatientDetailView(root, id) {
         <div class="card"><div class="label">Alergias registradas</div><div style="margin-top:.5rem">${allergies.length ? allergies.map((a) => `<span class="badge bad">${a}</span> `).join('') : '<span class="badge">Sin alergias registradas</span>'}</div></div>
       </div>
 
+      <div class="phase"><span class="phase-tag">Foto</span>
+        <h2>Foto registrada</h2>
+        <img id="pet-photo" alt="Foto de ${p.name}" style="max-width:280px;border-radius:12px;display:block;margin-bottom:.6rem" />
+        <form class="inline" id="photo" enctype="multipart/form-data">
+          <input name="photo" type="file" accept="image/jpeg,image/png,image/webp" required />
+          <button>Subir foto (máx. 2 MB)</button>
+        </form>
+      </div>
+
       <div class="phase"><span class="phase-tag">Fase 1 · Examen</span>
         <h2>Card 1 · Anamnesis y Diagnóstico</h2>
         <form class="inline" id="consult">
@@ -170,6 +197,21 @@ export async function PatientDetailView(root, id) {
       <h2>Vacunaciones</h2>
       ${vaccs ? `<table><thead><tr><th>Vacuna</th><th>Vence</th><th>Estado</th></tr></thead><tbody>${vaccs}</tbody></table>` : `<div class="empty">Sin vacunaciones registradas.</div>`}`;
     const msg = () => root.querySelector('#msg');
+    loadAuthPhoto(root.querySelector('#pet-photo'), `/pets/${id}/photo`);
+    root.querySelector('#photo').onsubmit = async (e) => {
+      e.preventDefault();
+      const file = e.target.photo.files[0];
+      if (!file) return;
+      const fd = new FormData();
+      fd.append('photo', file);
+      try {
+        await api(`/pets/${id}/photo`, { method: 'POST', body: fd });
+        msg().innerHTML = '<div class="alert info">Foto actualizada.</div>';
+        PatientDetailView(root, id);
+      } catch (err) {
+        msg().innerHTML = `<div class="alert error">${err.message}</div>`;
+      }
+    };
     root.querySelector('#consult').onsubmit = async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);

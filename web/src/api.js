@@ -1,7 +1,8 @@
 // Thin fetch wrapper over the real VetCura backend. No mocks.
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/$/, '');
+export { API_URL };
 
-function token() {
+export function token() {
   return localStorage.getItem('vetcura_token') || '';
 }
 
