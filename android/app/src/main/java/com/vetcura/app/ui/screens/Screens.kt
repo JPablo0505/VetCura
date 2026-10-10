@@ -28,7 +28,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -46,12 +49,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.vetcura.app.R
 import com.vetcura.app.data.AppointmentRequest
 import com.vetcura.app.data.VetCuraApi
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 
 // Every screen follows one contract: loading -> content | empty | error.
 // No action button is decorative: each one calls the backend.
@@ -76,7 +83,7 @@ fun ageYears(birthdate: String?): String {
 }
 
 @Composable
-fun LoginScreen(api: VetCuraApi, onToken: (String) -> Unit) {
+fun LoginScreen(api: VetCuraApi, onSession: (String, String) -> Unit) {
     // Mirrors Mockups/Login.svg. The mockup's anonymous pet-ID button
     // would expose clinical data without auth, so clinic access is the
     // real email login (deviation documented in docs/VISUAL-SPEC.md).
@@ -85,6 +92,8 @@ fun LoginScreen(api: VetCuraApi, onToken: (String) -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val googleReady = com.vetcura.app.BuildConfig.GOOGLE_CLIENT_ID.isNotBlank()
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -110,6 +119,31 @@ fun LoginScreen(api: VetCuraApi, onToken: (String) -> Unit) {
             Text("Historial médico, citas prioritarias y control veterinario integral en la palma de tu mano.")
         }
         item {
+            if (googleReady) {
+                OutlinedButton(
+                    onClick = {
+                        busy = true
+                        error = null
+                        scope.launch {
+                            try {
+                                when (val g = requestGoogleIdToken(context)) {
+                                    is GoogleResult.Token -> {
+                                        val r = api.google(com.vetcura.app.data.GoogleRequest(g.idToken))
+                                        onSession(r.token, r.refreshToken)
+                                    }
+                                    is GoogleResult.Cancelled -> Unit
+                                    is GoogleResult.Error -> error = "Google: ${g.message}"
+                                }
+                            } catch (e: Exception) {
+                                error = googleLinkHint(e)
+                            } finally {
+                                busy = false
+                            }
+                        }
+                    },
+                    Modifier.fillMaxWidth(),
+                ) { Text("Continuar con Google") }
+            }
             OutlinedTextField(email, { email = it }, Modifier.fillMaxWidth(), label = { Text("Correo") })
             OutlinedTextField(password, { password = it }, Modifier.fillMaxWidth(), label = { Text("Contraseña") })
             if (busy) CircularProgressIndicator()
@@ -121,7 +155,7 @@ fun LoginScreen(api: VetCuraApi, onToken: (String) -> Unit) {
                     scope.launch {
                         try {
                             val r = api.login(com.vetcura.app.data.LoginRequest(email, password))
-                            onToken(r.token)
+                            onSession(r.token, r.refreshToken)
                         } catch (e: Exception) {
                             error = "No se pudo iniciar sesión: ${friendlyError(e)}"
                         } finally {
@@ -131,9 +165,19 @@ fun LoginScreen(api: VetCuraApi, onToken: (String) -> Unit) {
                 },
                 Modifier.fillMaxWidth(),
             ) { Text("Acceder con mi clínica") }
-            Text("El acceso con Google requiere configurar OAuth (ver docs).", style = MaterialTheme.typography.bodySmall)
+            if (!googleReady) {
+                Text("El acceso con Google requiere configurar OAuth (ver docs).", style = MaterialTheme.typography.bodySmall)
+            }
         }
     }
+}
+
+private fun googleLinkHint(e: Exception): String {
+    val http = e as? retrofit2.HttpException
+    if (http?.code() == 409) {
+        return "Tu correo ya tiene cuenta: entra con tu correo y vincúlalo desde Perfil."
+    }
+    return "No se pudo iniciar sesión con Google: ${friendlyError(e)}"
 }
 
 private data class HomeData(
@@ -350,29 +394,51 @@ fun HistoryAllScreen(api: VetCuraApi, auth: String, onPet: (Int) -> Unit) {
 
 @Composable
 fun ProfileScreen(api: VetCuraApi, auth: String, onLogout: () -> Unit) {
-    var name by remember { mutableStateOf<String?>(null) }
-    var email by remember { mutableStateOf<String?>(null) }
-    var phone by remember { mutableStateOf<String?>(null) }
+    var profile by remember { mutableStateOf<com.vetcura.app.data.Profile?>(null) }
+    var name by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    var address by remember { mutableStateOf("") }
+    var editing by remember { mutableStateOf(false) }
     var invoices by remember { mutableStateOf<List<com.vetcura.app.data.Invoice>?>(null) }
+    var notifs by remember { mutableStateOf<List<com.vetcura.app.data.NotifItem>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    var notice by remember { mutableStateOf<String?>(null) }
+    var photoTick by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(auth) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    suspend fun reload() {
+        try {
+            val p = api.myProfile("Bearer $auth").profile
+            profile = p
+            name = p.display_name
+            phone = p.phone ?: ""
+            address = p.address ?: ""
+            invoices = api.invoices("Bearer $auth").invoices
+            notifs = api.notifications("Bearer $auth").notifications.take(10)
+        } catch (e: Exception) {
+            error = "No se pudo cargar el perfil: ${friendlyError(e)}"
+        }
+    }
+    LaunchedEffect(auth) { reload() }
+
+    val picker = rememberPhotoPicker { bytes, mime ->
         scope.launch {
             try {
-                val me = api.me("Bearer $auth").user
-                val owner = api.owner("Bearer $auth", me.id).owner
-                name = owner.display_name
-                email = owner.email
-                phone = owner.phone
-                invoices = api.invoices("Bearer $auth").invoices
+                api.uploadMyPhoto("Bearer $auth", photoPart(bytes, mime))
+                photoTick += 1
+                notice = "Foto actualizada."
+                reload()
             } catch (e: Exception) {
-                error = "No se pudo cargar el perfil: ${friendlyError(e)}"
+                error = "No se pudo subir la foto: ${friendlyError(e)}"
             }
         }
     }
-    if (error != null) {
+
+    val p = profile
+    if (error != null && p == null) {
         Text(error!!, Modifier.padding(24.dp), color = MaterialTheme.colorScheme.error)
-    } else if (name == null) {
+    } else if (p == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
     } else {
         LazyColumn(
@@ -381,13 +447,138 @@ fun ProfileScreen(api: VetCuraApi, auth: String, onLogout: () -> Unit) {
         ) {
             item {
                 Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), Arrangement.spacedBy(4.dp)) {
-                        Text(name!!, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text(email ?: "")
-                        Text(phone ?: "Sin teléfono registrado")
+                    Column(Modifier.padding(16.dp), Arrangement.spacedBy(6.dp)) {
+                        if (p.photo_path != null) {
+                            AuthImage(
+                                auth,
+                                "${com.vetcura.app.BuildConfig.API_URL}/me/photo?v=$photoTick",
+                                "Foto de perfil",
+                                Modifier.size(96.dp).clip(CircleShape),
+                            )
+                        }
+                        if (!editing) {
+                            Text(p.display_name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text(p.email + if (p.email_verified == 1) " · verificado" else "")
+                            Text(p.phone ?: "Sin teléfono registrado")
+                            Text(p.address ?: "")
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(onClick = { editing = true }) { Text("Editar") }
+                                OutlinedButton(onClick = { picker.launch("image/*") }) { Text("Foto") }
+                            }
+                        } else {
+                            OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Nombre completo") })
+                            OutlinedTextField(phone, { phone = it }, Modifier.fillMaxWidth(), label = { Text("Teléfono") })
+                            OutlinedTextField(address, { address = it }, Modifier.fillMaxWidth(), label = { Text("Dirección") })
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(onClick = {
+                                    scope.launch {
+                                        try {
+                                            val updated = api.updateProfile(
+                                                "Bearer $auth",
+                                                com.vetcura.app.data.ProfilePatch(
+                                                    display_name = name.ifBlank { null },
+                                                    phone = phone.ifBlank { null },
+                                                    address = address.ifBlank { null },
+                                                ),
+                                            )
+                                            profile = updated.profile
+                                            editing = false
+                                            notice = "Perfil guardado."
+                                        } catch (e: Exception) {
+                                            error = "No se pudo guardar: ${friendlyError(e)}"
+                                        }
+                                    }
+                                }) { Text("Guardar") }
+                                OutlinedButton(onClick = {
+                                    name = p.display_name
+                                    phone = p.phone ?: ""
+                                    address = p.address ?: ""
+                                    editing = false
+                                }) { Text("Cancelar") }
+                            }
+                        }
+                        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                        notice?.let { Text(it) }
                     }
                 }
-                Text("Mis Facturas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp))
+            }
+            item {
+                PrefRow("Notificaciones push", p.preferences.push_enabled == 1) {
+                    scope.launch {
+                        try {
+                            profile = profile?.copy(preferences = api.updatePrefs("Bearer $auth", com.vetcura.app.data.PrefsPatch(push_enabled = it)).preferences)
+                        } catch (e: Exception) {
+                            error = friendlyError(e)
+                        }
+                    }
+                }
+                PrefRow("Correo", p.preferences.email_enabled == 1) {
+                    scope.launch {
+                        try {
+                            profile = profile?.copy(preferences = api.updatePrefs("Bearer $auth", com.vetcura.app.data.PrefsPatch(email_enabled = it)).preferences)
+                        } catch (e: Exception) {
+                            error = friendlyError(e)
+                        }
+                    }
+                }
+                PrefRow("Recordatorios de citas", p.preferences.appointment_reminders == 1) {
+                    scope.launch {
+                        try {
+                            profile = profile?.copy(preferences = api.updatePrefs("Bearer $auth", com.vetcura.app.data.PrefsPatch(appointment_reminders = it)).preferences)
+                        } catch (e: Exception) {
+                            error = friendlyError(e)
+                        }
+                    }
+                }
+                PrefRow("Recordatorios de vacunas", p.preferences.vaccination_reminders == 1) {
+                    scope.launch {
+                        try {
+                            profile = profile?.copy(preferences = api.updatePrefs("Bearer $auth", com.vetcura.app.data.PrefsPatch(vaccination_reminders = it)).preferences)
+                        } catch (e: Exception) {
+                            error = friendlyError(e)
+                        }
+                    }
+                }
+                if (com.vetcura.app.BuildConfig.GOOGLE_CLIENT_ID.isNotBlank()) {
+                    OutlinedButton(onClick = {
+                        scope.launch {
+                            try {
+                                when (val g = requestGoogleIdToken(context)) {
+                                    is GoogleResult.Token -> {
+                                        api.linkGoogle("Bearer $auth", com.vetcura.app.data.GoogleRequest(g.idToken))
+                                        notice = "Cuenta de Google vinculada."
+                                        reload()
+                                    }
+                                    is GoogleResult.Cancelled -> Unit
+                                    is GoogleResult.Error -> error = "Google: ${g.message}"
+                                }
+                            } catch (e: Exception) {
+                                error = googleLinkHint(e)
+                            }
+                        }
+                    }, Modifier.fillMaxWidth()) { Text("Vincular cuenta de Google") }
+                }
+            }
+            item {
+                Text("Avisos recientes", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
+            val ns = notifs
+            if (ns == null) {
+                item { CircularProgressIndicator() }
+            } else if (ns.isEmpty()) {
+                item { Text("Sin avisos por ahora.") }
+            } else {
+                items(ns) { n ->
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text(n.title, fontWeight = FontWeight.Bold)
+                            Text(n.body, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+            item {
+                Text("Mis Facturas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
             val invs = invoices
             if (invs == null) {
@@ -408,6 +599,14 @@ fun ProfileScreen(api: VetCuraApi, auth: String, onLogout: () -> Unit) {
                 OutlinedButton(onClick = onLogout, Modifier.fillMaxWidth()) { Text("Cerrar sesión") }
             }
         }
+    }
+}
+
+@Composable
+private fun PrefRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+        Text(label)
+        Switch(checked = checked, onCheckedChange = onChange)
     }
 }
 
@@ -532,18 +731,45 @@ fun AppointmentsScreen(api: VetCuraApi, auth: String) {
 
 @Composable
 fun HistoryScreen(api: VetCuraApi, auth: String, petId: Int) {
+    var detail by remember { mutableStateOf<com.vetcura.app.data.PetDetailResponse?>(null) }
     var state by remember { mutableStateOf<UiState>(UiState.Loading) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var editing by remember { mutableStateOf(false) }
+    var name by remember { mutableStateOf("") }
+    var species by remember { mutableStateOf("") }
+    var breed by remember { mutableStateOf("") }
+    var birthdate by remember { mutableStateOf("") }
+    var weightAdd by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(petId) {
+
+    suspend fun reload() {
+        try {
+            val d = api.pet("Bearer $auth", petId)
+            detail = d
+            name = d.pet.name
+            species = d.pet.species
+            breed = d.pet.breed ?: ""
+            birthdate = d.pet.birthdate ?: ""
+            val h = api.history("Bearer $auth", petId)
+            state = UiState.History(h.consultations, h.vaccinations)
+        } catch (e: Exception) {
+            state = UiState.Error("No se pudo cargar el historial: ${friendlyError(e)}")
+        }
+    }
+    LaunchedEffect(petId) { reload() }
+
+    val picker = rememberPhotoPicker { bytes, mime ->
         scope.launch {
-            state = try {
-                val h = api.history("Bearer $auth", petId)
-                UiState.History(h.consultations, h.vaccinations)
+            try {
+                api.uploadPetPhoto("Bearer $auth", petId, photoPart(bytes, mime))
+                reload()
             } catch (e: Exception) {
-                UiState.Error("No se pudo cargar el historial: ${friendlyError(e)}")
+                error = "No se pudo subir la foto: ${friendlyError(e)}"
             }
         }
     }
+
+    val d = detail
     when (val s = state) {
         UiState.Loading -> CircularProgressIndicator(Modifier.padding(24.dp))
         is UiState.Error -> Text(s.message, Modifier.padding(24.dp), color = MaterialTheme.colorScheme.error)
@@ -552,6 +778,79 @@ fun HistoryScreen(api: VetCuraApi, auth: String, petId: Int) {
                 modifier = Modifier.fillMaxSize().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                if (d != null) {
+                    item {
+                        Card(Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(16.dp), Arrangement.spacedBy(6.dp)) {
+                                if (d.pet.photo_path != null) {
+                                    AuthImage(
+                                        auth,
+                                        "${com.vetcura.app.BuildConfig.API_URL}/pets/$petId/photo",
+                                        d.pet.name,
+                                        Modifier.fillMaxWidth().height(170.dp).clip(RoundedCornerShape(12.dp)),
+                                    )
+                                }
+                                if (!editing) {
+                                    Text(d.pet.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                                    Text("${d.pet.species}${d.pet.breed?.let { " · $it" } ?: ""} · ${ageYears(d.pet.birthdate)}")
+                                    Text("Peso: ${d.pet.weight_kg?.toString() ?: "—"} kg")
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedButton(onClick = { editing = true }) { Text("Editar datos") }
+                                        OutlinedButton(onClick = { picker.launch("image/*") }) { Text("Foto") }
+                                    }
+                                } else {
+                                    OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Nombre") })
+                                    OutlinedTextField(species, { species = it }, Modifier.fillMaxWidth(), label = { Text("Especie") })
+                                    OutlinedTextField(breed, { breed = it }, Modifier.fillMaxWidth(), label = { Text("Raza") })
+                                    OutlinedTextField(birthdate, { birthdate = it }, Modifier.fillMaxWidth(), label = { Text("Nacimiento (AAAA-MM-DD)") })
+                                    OutlinedTextField(weightAdd, { weightAdd = it }, Modifier.fillMaxWidth(), label = { Text("Nuevo peso en kg (se registra fechado)") })
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Button(onClick = {
+                                            scope.launch {
+                                                try {
+                                                    val w = weightAdd.ifBlank { null }?.toDoubleOrNull()
+                                                    if (weightAdd.isNotBlank() && (w == null || w <= 0)) {
+                                                        error = "El peso debe ser un número mayor que cero."
+                                                        return@launch
+                                                    }
+                                                    api.updatePet(
+                                                        "Bearer $auth", petId,
+                                                        com.vetcura.app.data.PetPatch(
+                                                            name = name.ifBlank { null },
+                                                            species = species.ifBlank { null },
+                                                            breed = breed.ifBlank { null },
+                                                            birthdate = birthdate.ifBlank { null },
+                                                            weight_kg = w,
+                                                        ),
+                                                    )
+                                                    weightAdd = ""
+                                                    editing = false
+                                                    reload()
+                                                } catch (e: Exception) {
+                                                    error = "No se pudo guardar: ${friendlyError(e)}"
+                                                }
+                                            }
+                                        }) { Text("Guardar") }
+                                        OutlinedButton(onClick = { editing = false }) { Text("Cancelar") }
+                                    }
+                                }
+                                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                            }
+                        }
+                    }
+                    if (d.measurements.isNotEmpty()) {
+                        item {
+                            Card(Modifier.fillMaxWidth()) {
+                                Column(Modifier.padding(16.dp), Arrangement.spacedBy(4.dp)) {
+                                    Text("Historial de peso", fontWeight = FontWeight.Bold)
+                                    d.measurements.takeLast(5).reversed().forEach { m ->
+                                        Text("${m.date}: ${m.weight_kg} kg")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 items(s.consultations) { c ->
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(16.dp)) {
@@ -624,4 +923,88 @@ sealed interface UiState {
         val consultations: List<com.vetcura.app.data.Consultation>,
         val vaccinations: List<com.vetcura.app.data.Vaccination>,
     ) : UiState
+}
+
+sealed interface GoogleResult {
+    data class Token(val idToken: String) : GoogleResult
+    data object Cancelled : GoogleResult
+    data class Error(val message: String) : GoogleResult
+}
+
+// Official Credential Manager flow. The ID token is verified by the
+// backend (signature, issuer, expiry, audience); the app never trusts
+// identity claims on its own.
+suspend fun requestGoogleIdToken(context: android.content.Context): GoogleResult {
+    if (com.vetcura.app.BuildConfig.GOOGLE_CLIENT_ID.isBlank()) {
+        return GoogleResult.Error("Google no está configurado en esta compilación")
+    }
+    return try {
+        val manager = androidx.credentials.CredentialManager.create(context)
+        val option = com.google.android.libraries.identity.googleid.GetGoogleIdOption.Builder()
+            .setFilterByAuthorizedAccounts(false)
+            .setServerClientId(com.vetcura.app.BuildConfig.GOOGLE_CLIENT_ID)
+            .build()
+        val request = androidx.credentials.GetCredentialRequest.Builder()
+            .addCredentialOption(option)
+            .build()
+        val result = manager.getCredential(context, request)
+        val credential = com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+            .createFrom(result.credential.data)
+        if (credential.idToken.isBlank()) GoogleResult.Error("Sin credencial válida")
+        else GoogleResult.Token(credential.idToken)
+    } catch (_: androidx.credentials.exceptions.GetCredentialCancellationException) {
+        GoogleResult.Cancelled
+    } catch (e: Exception) {
+        GoogleResult.Error(e.message ?: "error desconocido")
+    }
+}
+
+// Authenticated image loader: private photos travel with the Bearer
+// token, never through public URLs.
+@Composable
+fun AuthImage(
+    auth: String,
+    url: String,
+    desc: String,
+    modifier: Modifier = Modifier,
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val request = remember(url) {
+        coil.request.ImageRequest.Builder(context)
+            .data(url)
+            .addHeader("Authorization", "Bearer $auth")
+            .crossfade(false)
+            .build()
+    }
+    coil.compose.AsyncImage(
+        model = request,
+        contentDescription = desc,
+        modifier = modifier,
+        contentScale = ContentScale.Crop,
+    )
+}
+
+@Composable
+fun rememberPhotoPicker(onBytes: (ByteArray, String) -> Unit): androidx.activity.result.ActivityResultLauncher<String> {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    return rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        try {
+            val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
+            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            if (bytes != null) onBytes(bytes, mime)
+        } catch (_: Exception) {
+        }
+    }
+}
+
+fun photoPart(bytes: ByteArray, mime: String): okhttp3.MultipartBody.Part {
+    val media = mime.substringBefore(";").ifBlank { "image/jpeg" }.toMediaType()
+    val body = bytes.toRequestBody(media)
+    val ext = when {
+        media.subtype.contains("png") -> "png"
+        media.subtype.contains("webp") -> "webp"
+        else -> "jpg"
+    }
+    return okhttp3.MultipartBody.Part.createFormData("photo", "photo.$ext", body)
 }
