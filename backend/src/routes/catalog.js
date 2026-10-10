@@ -17,7 +17,9 @@ function buildCatalogRoutes(db) {
   const router = express.Router();
   router.use(requireAuth);
 
-  router.get('/vets', requireRole(...STAFF), (req, res, next) => {
+  // Public to any authenticated user: owners must see veterinarians
+  // to choose one when booking (names only, no sensitive data).
+  router.get('/vets', (req, res, next) => {
     try {
       const rows = db
         .prepare("SELECT id, email, display_name FROM users WHERE role IN ('vet','admin') ORDER BY display_name")
