@@ -29,6 +29,22 @@ function main() {
   user('staff@vetcura.local', 'staff', 'Recepcion');
   const owner1 = user('lucia@example.com', 'owner', 'Lucia Gomez');
   const owner2 = user('marco@example.com', 'owner', 'Marco Ruiz');
+  // Demo owner WITH password for on-device testing (dev only — the two
+  // owners above sign in via Google linking once OAuth is configured).
+  const demo = db
+    .prepare(
+      "INSERT INTO users (email, password_hash, role, display_name) VALUES ('demo@vetcura.local', ?, 'owner', 'Demo Owner') RETURNING id",
+    )
+    .get(password).id;
+  db.prepare('INSERT INTO owners (user_id, phone) VALUES (?, ?)').run(demo, '+34 600 000 001');
+  const firulais = db
+    .prepare(
+      "INSERT INTO pets (owner_id, name, species, breed, birthdate, sex, weight_kg) VALUES (?, 'Firulais', 'dog', 'Mestizo', '2022-09-01', 'male', 15.0) RETURNING id",
+    )
+    .get(demo).id;
+  db.prepare('INSERT INTO vaccinations (pet_id, vaccine, due_date) VALUES (?, ?, ?)').run(
+    firulais, 'Rabia', new Date(Date.now() + 10 * 864e5).toISOString().slice(0, 10),
+  );
   db.prepare('INSERT INTO owners (user_id, phone) VALUES (?, ?)').run(owner1, '+34 600 111 222');
   db.prepare('INSERT INTO owners (user_id, phone) VALUES (?, ?)').run(owner2, '+34 600 333 444');
 
