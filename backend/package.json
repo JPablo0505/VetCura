@@ -7,7 +7,7 @@
     "start": "node src/server.js",
     "migrate": "node scripts/migrate.js",
     "seed": "node scripts/seed.js",
-    "test": "node --test tests/api.test.js tests/auth-v2.test.js tests/profile.test.js tests/pets.test.js tests/notify.test.js tests/availability.test.js",
+    "test": "node --test tests/api.test.js tests/auth-v2.test.js tests/profile.test.js tests/pets.test.js tests/notify.test.js tests/availability.test.js tests/invoicing.test.js",
     "notify:due": "node scripts/send-due.js"
   },
   "dependencies": {

@@ -47,10 +47,27 @@ function recomputeTotals(db, invoiceId) {
 }
 
 function serializeInvoice(db, id) {
-  const invoice = db.prepare('SELECT * FROM invoices WHERE id = ?').get(id);
+  const invoice = db
+    .prepare(
+      `SELECT i.*, u.display_name AS owner_name, p.name AS pet_name
+       FROM invoices i
+       JOIN users u ON u.id = i.owner_id
+       JOIN pets p ON p.id = i.pet_id
+       WHERE i.id = ?`,
+    )
+    .get(id);
   if (!invoice) return null;
   const items = db.prepare('SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY id').all(id);
   return { ...invoice, items };
+}
+
+// Sequential receipt numbers (FV-0001…), assigned once at issue inside
+// the same transaction as the status change.
+function nextInvoiceNumber(db) {
+  const row = db
+    .prepare("SELECT COALESCE(MAX(CAST(SUBSTR(number, 4) AS INTEGER)), 0) AS max_n FROM invoices WHERE number LIKE 'FV-%'")
+    .get();
+  return `FV-${String(row.max_n + 1).padStart(4, '0')}`;
 }
 
 function buildInvoiceRoutes(db) {
@@ -178,10 +195,52 @@ function buildInvoiceRoutes(db) {
         runInTransaction(db, () => {
           recomputeTotals(db, id);
           if (parsed.data.status === 'issued') {
-            db.prepare("UPDATE invoices SET status = 'issued', issued_at = datetime('now') WHERE id = ?").run(id);
+            const number = invoice.number || nextInvoiceNumber(db);
+            db.prepare("UPDATE invoices SET status = 'issued', issued_at = datetime('now'), number = ? WHERE id = ?").run(number, id);
           } else {
             db.prepare('UPDATE invoices SET status = ? WHERE id = ?').run(parsed.data.status, id);
           }
+        });
+      tx();
+      const updated = serializeInvoice(db, id);
+      // Issuing notifies the owner: a new receipt waits in their app.
+      // Minimal payload (no amounts or clinical detail); prefs-gated.
+      if (parsed.data.status === 'issued') {
+        const { enqueue } = require('../lib/notify');
+        enqueue(db, {
+          key: `invoice:${id}`,
+          userId: updated.owner_id,
+          kind: 'clinic',
+          title: 'VetCura: nueva factura disponible',
+          body: 'Tienes una factura pendiente. Abre la app para verla y pagarla.',
+        });
+      }
+      res.json({ invoice: updated });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Owner self-service payment: own invoices, issued only. Staff keep
+  // using the PATCH machine; this route never changes other states.
+  router.post('/invoices/:id/pay', (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      const parsed = z.object({ payment_method: z.enum(['efectivo', 'transferencia', 'tarjeta']) }).safeParse(req.body);
+      if (!parsed.success) throw apiError('validation_error', 'payment_method must be efectivo, transferencia or tarjeta', 400);
+      const invoice = db.prepare('SELECT * FROM invoices WHERE id = ?').get(id);
+      if (!invoice) throw apiError('not_found', 'Invoice not found', 404);
+      const isOwner = req.user.role === 'owner' && invoice.owner_id === req.user.sub;
+      const isStaff = STAFF.includes(req.user.role);
+      if (!isOwner && !isStaff) throw apiError('forbidden', 'Not your invoice', 403);
+      if (invoice.status !== 'issued') {
+        throw apiError('invalid_transition', 'Only issued invoices can be paid', 409);
+      }
+      const tx = () =>
+        runInTransaction(db, () => {
+          recomputeTotals(db, id);
+          db.prepare("UPDATE invoices SET status = 'paid', payment_method = ?, paid_at = datetime('now') WHERE id = ?")
+            .run(parsed.data.payment_method, id);
         });
       tx();
       res.json({ invoice: serializeInvoice(db, id) });

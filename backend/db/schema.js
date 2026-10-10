@@ -184,6 +184,14 @@ const MIGRATIONS = [
   ;
   CREATE INDEX idx_availability_vet_day ON vet_availability(vet_user_id, weekday)
   ;`,
+  `ALTER TABLE invoices ADD COLUMN number TEXT
+  ;
+  ALTER TABLE invoices ADD COLUMN payment_method TEXT
+  ;
+  ALTER TABLE invoices ADD COLUMN paid_at TEXT
+  ;
+  CREATE UNIQUE INDEX idx_invoices_number ON invoices(number)
+  ;`,
 ];
 
 // NOTE: keep this SQL free of ';' inside string literals or comments:
