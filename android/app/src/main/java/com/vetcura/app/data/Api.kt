@@ -73,10 +73,15 @@ data class InvoicesResponse(val invoices: List<Invoice>)
 data class InvoiceResponse(val invoice: Invoice)
 data class Alert(val id: Int, val pet_id: Int, val pet_name: String, val vaccine: String, val due_date: String, val overdue: Boolean)
 data class AlertsResponse(val alerts: List<Alert>)
+data class MeResponse(val user: User)
+data class Owner(val user_id: Int, val email: String, val display_name: String, val phone: String?, val address: String?)
+data class OwnerDetailResponse(val owner: Owner, val pets: List<Pet>)
 
 interface VetCuraApi {
     @POST("auth/login") suspend fun login(@Body body: LoginRequest): AuthResponse
     @POST("auth/google") suspend fun google(@Body body: GoogleRequest): AuthResponse
+    @GET("auth/me") suspend fun me(@Header("Authorization") auth: String): MeResponse
+    @GET("owners/{id}") suspend fun owner(@Header("Authorization") auth: String, @Path("id") id: Int): OwnerDetailResponse
     @GET("pets") suspend fun pets(@Header("Authorization") auth: String): PetsResponse
     @GET("pets/{id}") suspend fun pet(@Header("Authorization") auth: String, @Path("id") id: Int): PetDetailResponse
     @GET("pets/{id}/history") suspend fun history(@Header("Authorization") auth: String, @Path("id") id: Int): HistoryResponse
