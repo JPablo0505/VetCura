@@ -225,7 +225,8 @@ describe('invoices with server-side totals', () => {
     const inv = discountItem.json.invoice;
     assert.equal(inv.items[1].line_total_cents, 100);
     assert.equal(inv.subtotal_cents, 4100);
-    assert.equal(inv.tax_cents, Math.round(4100 * 0.1));
+    const { taxRate } = require('../src/routes/invoices');
+    assert.equal(inv.tax_cents, Math.round(4100 * taxRate()));
     assert.equal(inv.total_cents, inv.subtotal_cents + inv.tax_cents);
 
     const issued = await api('PATCH', `/invoices/${id}/status`, global.tokens.admin, { status: 'issued' });

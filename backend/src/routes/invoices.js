@@ -28,9 +28,10 @@ const itemSchema = z.object({
   unit_price_cents: z.number().int().min(0).nullable().optional(),
 });
 
+// Chilean IVA (19%) per the mockup billing screens. Override with TAX_RATE.
 function taxRate() {
-  const raw = Number(process.env.TAX_RATE ?? 0.1);
-  return Number.isFinite(raw) && raw >= 0 && raw <= 1 ? raw : 0.1;
+  const raw = Number(process.env.TAX_RATE ?? 0.19);
+  return Number.isFinite(raw) && raw >= 0 && raw <= 1 ? raw : 0.19;
 }
 
 // Totals are ALWAYS recomputed server-side inside a transaction.
@@ -192,4 +193,4 @@ function buildInvoiceRoutes(db) {
   return router;
 }
 
-module.exports = { buildInvoiceRoutes, recomputeTotals };
+module.exports = { buildInvoiceRoutes, recomputeTotals, taxRate };
