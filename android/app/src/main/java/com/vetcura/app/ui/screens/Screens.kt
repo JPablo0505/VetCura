@@ -1,6 +1,8 @@
 package com.vetcura.app.ui.screens
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -57,6 +59,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -520,7 +523,7 @@ fun HistoryAllScreen(api: VetCuraApi, auth: String, onPet: (Int) -> Unit) {
                 Card(onClick = { onPet(petId) }, Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(14.dp)) {
                         Text(e.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                        Text(e.date, style = MaterialTheme.typography.bodySmall)
+                        Text(friendlyDate(e.date), style = MaterialTheme.typography.bodySmall)
                         if (e.detail.isNotBlank()) Text(e.detail)
                     }
                 }
@@ -1013,7 +1016,7 @@ fun HistoryScreen(api: VetCuraApi, auth: String, petId: Int) {
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(16.dp)) {
                             Text(c.diagnosis, style = MaterialTheme.typography.titleMedium)
-                            Text(c.created_at)
+                            Text(friendlyDate(c.created_at))
                             c.treatment?.let { Text("Tratamiento: $it") }
                             if (c.allergies.isNotEmpty()) Text("Alergias: ${c.allergies.joinToString()}")
                         }
@@ -1022,8 +1025,8 @@ fun HistoryScreen(api: VetCuraApi, auth: String, petId: Int) {
                 items(s.vaccinations) { v ->
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(16.dp)) {
-                            Text("${v.vaccine} · vence ${v.due_date}", style = MaterialTheme.typography.titleMedium)
-                            Text(if (v.given_date == null) "Pendiente" else "Aplicada el ${v.given_date}")
+                            Text("${v.vaccine} · vence ${friendlyDate(v.due_date)}", style = MaterialTheme.typography.titleMedium)
+                            Text(if (v.given_date == null) "Pendiente" else "Aplicada el ${friendlyDate(v.given_date)}")
                         }
                     }
                 }
@@ -1071,6 +1074,19 @@ private fun friendlyTime(iso: String): String = try {
         .format(java.util.Date.from(zoned.toInstant()))
 } catch (_: Exception) {
     iso
+}
+
+private fun friendlyDate(value: String): String {
+    val dt = friendlyDateTime(value)
+    if (dt != value) return dt
+    return try {
+        val d = java.time.LocalDate.parse(value)
+        val instant = d.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant()
+        java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale("es", "CO"))
+            .format(java.util.Date.from(instant))
+    } catch (_: Exception) {
+        value
+    }
 }
 
 private fun friendlyDateTime(iso: String): String = try {    val instant = java.time.Instant.parse(iso)
@@ -1165,31 +1181,122 @@ fun AuthImage(
 @Composable
 fun rememberPhotoPicker(onBytes: (ByteArray, String) -> Unit): androidx.activity.result.ActivityResultLauncher<String> {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val cropLauncher = rememberLauncherForActivityResult(
-        com.canhub.cropper.CropImageContract(),
-    ) { result ->
-        if (result.isSuccessful) {
-            try {
-                val bytes = result.uriContent?.let {
-                    context.contentResolver.openInputStream(it)?.use { s -> s.readBytes() }
+    var picked by remember { mutableStateOf<ByteArray?>(null) }
+    val gallery = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        try {
+            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            if (bytes != null) picked = bytes
+        } catch (_: Exception) {
+        }
+    }
+    picked?.let { bytes ->
+        CropDialog(
+            source = bytes,
+            onCancel = { picked = null },
+            onConfirm = { cropped ->
+                picked = null
+                onBytes(downscaleToJpeg(cropped), "image/jpeg")
+            },
+        )
+    }
+    return gallery
+}
+
+// In-app square cropper: drag to pan, pinch to zoom, confirm crops.
+// No external activities, so nothing outside the app can crash it.
+@Composable
+private fun CropDialog(source: ByteArray, onCancel: () -> Unit, onConfirm: (ByteArray) -> Unit) {
+    val bitmap = remember(source) { decodeSampled(source) }
+    if (bitmap == null) {
+        onCancel()
+        return
+    }
+    val sideDp = 300.dp
+    val sidePx = with(androidx.compose.ui.platform.LocalDensity.current) { sideDp.toPx() }
+    val base = maxOf(sidePx / bitmap.width, sidePx / bitmap.height)
+    var userScale by remember { mutableStateOf(1f) }
+    var offset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    val eff = base * userScale
+    val transform = androidx.compose.foundation.gestures.rememberTransformableState { zoom, pan, _ ->
+        userScale = (userScale * zoom).coerceIn(1f, 5f)
+        val e = base * userScale
+        val maxX = ((bitmap.width * e - sidePx) / 2).coerceAtLeast(0f)
+        val maxY = ((bitmap.height * e - sidePx) / 2).coerceAtLeast(0f)
+        offset = androidx.compose.ui.geometry.Offset(
+            (offset.x + pan.x).coerceIn(-maxX, maxX),
+            (offset.y + pan.y).coerceIn(-maxY, maxY),
+        )
+    }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onCancel) {
+        Card(shape = RoundedCornerShape(20.dp)) {
+            Column(Modifier.padding(16.dp), Arrangement.spacedBy(10.dp)) {
+                Text("Recortá la foto", fontWeight = FontWeight.Bold)
+                Text("Arrastrá y pellizcá para elegir el encuadre.", style = MaterialTheme.typography.bodySmall)
+                Box(Modifier.size(sideDp)) {
+                    androidx.compose.ui.viewinterop.AndroidView(
+                        factory = { ctx ->
+                            android.widget.ImageView(ctx).apply {
+                                setImageBitmap(bitmap)
+                                scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+                            }
+                        },
+                        modifier = Modifier
+                            .size(sideDp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .graphicsLayer(
+                                scaleX = eff,
+                                scaleY = eff,
+                                translationX = offset.x,
+                                translationY = offset.y,
+                            )
+                            .transformable(transform),
+                    )
                 }
-                // Square crop + downscale to 1024px JPEG: crisp on screen,
-                // always comfortably under the 2 MB server cap.
-                if (bytes != null) onBytes(downscaleToJpeg(bytes), "image/jpeg")
-            } catch (_: Exception) {
+                Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onCancel, Modifier.weight(1f)) { Text("Cancelar") }
+                    Button(
+                        onClick = {
+                            val v = sidePx / eff
+                            val side = minOf(v, bitmap.width.toFloat(), bitmap.height.toFloat())
+                            val cx = bitmap.width / 2f - offset.x / eff
+                            val cy = bitmap.height / 2f - offset.y / eff
+                            val left = (cx - side / 2).coerceIn(0f, bitmap.width - side)
+                            val top = (cy - side / 2).coerceIn(0f, bitmap.height - side)
+                            val w = side.toInt().coerceAtLeast(1)
+                            val h = side.toInt().coerceAtLeast(1)
+                            try {
+                                val cropped = android.graphics.Bitmap.createBitmap(
+                                    bitmap, left.toInt().coerceIn(0, bitmap.width - w),
+                                    top.toInt().coerceIn(0, bitmap.height - h), w, h,
+                                )
+                                val out = java.io.ByteArrayOutputStream()
+                                cropped.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, out)
+                                onConfirm(out.toByteArray())
+                            } catch (_: Exception) {
+                                onCancel()
+                            }
+                        },
+                        Modifier.weight(1f),
+                    ) { Text("Recortar") }
+                }
             }
         }
     }
-    return rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        val options = com.canhub.cropper.CropImageOptions(
-            aspectRatioX = 1,
-            aspectRatioY = 1,
-            fixAspectRatio = true,
-            outputCompressFormat = android.graphics.Bitmap.CompressFormat.JPEG,
-            outputCompressQuality = 90,
+}
+
+private fun decodeSampled(bytes: ByteArray, maxSide: Int = 2048): android.graphics.Bitmap? {
+    return try {
+        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        var sample = 1
+        while (bounds.outWidth / sample > maxSide || bounds.outHeight / sample > maxSide) sample *= 2
+        android.graphics.BitmapFactory.decodeByteArray(
+            bytes, 0, bytes.size,
+            android.graphics.BitmapFactory.Options().apply { inSampleSize = sample },
         )
-        cropLauncher.launch(com.canhub.cropper.CropImageContractOptions(uri, options))
+    } catch (_: Exception) {
+        null
     }
 }
 
