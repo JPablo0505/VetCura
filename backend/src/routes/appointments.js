@@ -4,6 +4,7 @@ const { validate } = require('../lib/validate');
 const { apiError } = require('../lib/errors');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { petVisibleTo } = require('./owners-pets');
+const { coveredByAvailability } = require('./availability');
 
 const STAFF = ['admin', 'vet', 'staff'];
 const STATUS = ['scheduled', 'checked_in', 'done', 'cancelled', 'no_show'];
@@ -77,6 +78,9 @@ function buildAppointmentRoutes(db) {
           )
           .get(body.vet_user_id, body.starts_at, body.ends_at);
         if (clash) throw apiError('conflict', 'Veterinarian is not available in that slot', 409);
+        if (!coveredByAvailability(db, body.vet_user_id, body.starts_at, body.ends_at)) {
+          throw apiError('unavailable', 'Outside the veterinarian working hours', 409);
+        }
       }
       const created = db
         .prepare(

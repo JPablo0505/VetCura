@@ -173,6 +173,17 @@ const MIGRATIONS = [
   ;
   ALTER TABLE users ADD COLUMN email_verified_at TEXT
   ;`,
+  `CREATE TABLE vet_availability (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    vet_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    weekday INTEGER NOT NULL CHECK (weekday >= 0 AND weekday <= 6),
+    start_min INTEGER NOT NULL CHECK (start_min >= 0 AND start_min < 1440),
+    end_min INTEGER NOT NULL CHECK (end_min > 0 AND end_min <= 1440),
+    CHECK (end_min > start_min),
+    UNIQUE (vet_user_id, weekday, start_min))
+  ;
+  CREATE INDEX idx_availability_vet_day ON vet_availability(vet_user_id, weekday)
+  ;`,
 ];
 
 // NOTE: keep this SQL free of ';' inside string literals or comments:

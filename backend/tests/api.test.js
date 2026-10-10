@@ -48,6 +48,11 @@ before(async () => {
     "INSERT INTO pets (owner_id, name, species, breed, birthdate, sex) VALUES (?, 'Toby', 'dog', 'Beagle', '2022-05-01', 'male')",
   ).run(owner);
   db.prepare("INSERT INTO medications (name, kind, price_cents, stock) VALUES ('Vacuna X', 'drug', 2000, 10)").run();
+  // Legacy booking tests use a vet: keep them on a wide-open schedule so
+  // they exercise overlap/status logic; the hours guard is tested separately.
+  for (let weekday = 0; weekday < 7; weekday += 1) {
+    db.prepare('INSERT INTO vet_availability (vet_user_id, weekday, start_min, end_min) VALUES (?, ?, 0, 1440)').run(vet, weekday);
+  }
   const app = createApp(db);
   await new Promise((resolve) => {
     server = app.listen(0, () => {

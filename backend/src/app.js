@@ -10,6 +10,7 @@ const { buildCatalogRoutes } = require('./routes/catalog');
 const { buildInvoiceRoutes } = require('./routes/invoices');
 const { buildProfileRoutes } = require('./routes/profile');
 const { buildNotifyRoutes } = require('./routes/notify');
+const { buildAvailabilityRoutes } = require('./routes/availability');
 
 function createApp(db, options = {}) {
   const app = express();
@@ -30,6 +31,7 @@ function createApp(db, options = {}) {
   api.use(buildInvoiceRoutes(db));
   api.use(buildProfileRoutes(db));
   api.use(buildNotifyRoutes(db));
+  api.use(buildAvailabilityRoutes(db));
 
   // Dashboard KPIs computed from REAL system data (no fixtures).
   api.get(

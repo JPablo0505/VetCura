@@ -78,6 +78,11 @@ function main() {
      ('Jeringa 5ml', 'supply', 120, 200)`,
   ).run();
 
+  // Dr. Rivera works Mon–Fri 08:00–17:00 (weekday 1–5, minutes since midnight).
+  for (let weekday = 1; weekday <= 5; weekday += 1) {
+    db.prepare('INSERT INTO vet_availability (vet_user_id, weekday, start_min, end_min) VALUES (?, ?, 480, 1020)').run(vet, weekday);
+  }
+
   const appt = db
     .prepare(
       `INSERT INTO appointments (pet_id, vet_user_id, starts_at, ends_at, status, reason)
