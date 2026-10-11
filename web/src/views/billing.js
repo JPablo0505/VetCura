@@ -5,7 +5,7 @@ const STATUS_LABEL = { draft: 'Borrador', issued: 'Emitida', paid: 'Pagada', voi
 export async function BillingView(root) {
   root.innerHTML = '<h1>Facturación</h1><p>Cargando…</p>';
   try {
-    const [invoices, meds] = await Promise.all([api('/invoices'), api('/medications')]);
+    const [invoices, meds, vets] = await Promise.all([api('/invoices'), api('/medications'), api('/vets')]);
     const rows = invoices.invoices
       .map((i) => {
         const cls = i.status === 'paid' ? 'ok' : i.status === 'issued' ? 'info' : i.status === 'void' ? 'bad' : '';
@@ -25,6 +25,7 @@ export async function BillingView(root) {
       <h2>Nueva factura</h2>
       <form class="inline" id="create">
         <input name="pet_id" type="number" min="1" placeholder="ID mascota" required />
+        <select name="vet_user_id" id="f-vet"><option value="">Doctor que emite…</option>${vets.vets.map((v) => `<option value="${v.id}">${v.display_name}</option>`).join('')}</select>
         <button>Crear borrador</button>
       </form>
       <h2>Añadir concepto</h2>
@@ -100,7 +101,13 @@ export async function BillingView(root) {
       e.preventDefault();
       const fd = new FormData(e.target);
       try {
-        await api('/invoices', { method: 'POST', body: { pet_id: Number(fd.get('pet_id')) } });
+        await api('/invoices', {
+          method: 'POST',
+          body: {
+            pet_id: Number(fd.get('pet_id')),
+            vet_user_id: fd.get('vet_user_id') ? Number(fd.get('vet_user_id')) : null,
+          },
+        });
         BillingView(root);
       } catch (err) {
         msg().innerHTML = `<div class="alert error">${err.message}</div>`;
