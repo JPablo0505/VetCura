@@ -24,6 +24,7 @@ const petSchema = z.object({
   name: z.string().min(1).max(120),
   species: z.string().min(1).max(80),
   breed: z.string().max(120).nullable().optional(),
+  color: z.string().max(200).nullable().optional(),
   birthdate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD').nullable().optional(),
   sex: z.enum(['male', 'female', 'unknown']).default('unknown'),
   weight_kg: z.number().positive().max(500).nullable().optional(),
@@ -135,11 +136,11 @@ function buildOwnerPetRoutes(db) {
       if (!owner) throw apiError('not_found', 'Owner not found', 404);
       const created = db
         .prepare(
-          `INSERT INTO pets (owner_id, name, species, breed, birthdate, sex, weight_kg, photo_url)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO pets (owner_id, name, species, breed, color, birthdate, sex, weight_kg, photo_url)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
-          body.owner_id, body.name, body.species, body.breed || null,
+          body.owner_id, body.name, body.species, body.breed || null, body.color || null,
           body.birthdate || null, body.sex, body.weight_kg ?? null, body.photo_url || null,
         );
       res.status(201).json({

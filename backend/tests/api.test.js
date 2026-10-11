@@ -186,11 +186,19 @@ describe('clinical history and vaccination alerts', () => {
       weight_kg: 12.4,
       diagnosis: 'Otitis',
       allergies: ['Polen'],
+      client_summary: 'Revisión general y administración de medicamentos.',
     });
     assert.equal(r.status, 201);
+    // Owners see the generic summary only (trial visibility contract);
+    // internal detail stays with staff.
     const history = await api('GET', `/pets/${global.petId}/history`, global.tokens.owner);
     assert.equal(history.json.consultations.length, 1);
-    assert.deepEqual(history.json.consultations[0].allergies, ['Polen']);
+    assert.equal(history.json.consultations[0].client_summary, 'Revisión general y administración de medicamentos.');
+    assert.ok(!('diagnosis' in history.json.consultations[0]));
+    assert.ok(!('internal_notes' in history.json.consultations[0]));
+    const staffView = await api('GET', `/pets/${global.petId}/history`, global.tokens.vet);
+    assert.deepEqual(staffView.json.consultations[0].allergies, ['Polen']);
+    assert.equal(staffView.json.consultations[0].diagnosis, 'Otitis');
     const weight = await api('GET', `/pets/${global.petId}/weight-history`, global.tokens.owner);
     assert.deepEqual(weight.json.history, [{ date: history.json.consultations[0].created_at, weight_kg: 12.4 }]);
   });

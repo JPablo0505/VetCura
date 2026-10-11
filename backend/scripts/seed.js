@@ -27,6 +27,7 @@ function main() {
   }
   const admin = user('admin@vetcura.local', 'admin', 'Admin');
   const vet = user('vet@vetcura.local', 'vet', 'Dr. Rivera');
+  db.prepare("UPDATE users SET professional_id = 'MP-10234' WHERE id = ?").run(vet);
   user('staff@vetcura.local', 'staff', 'Recepcion');
   const owner1 = user('lucia@example.com', 'owner', 'Lucia Gomez');
   const owner2 = user('marco@example.com', 'owner', 'Marco Ruiz');
@@ -88,6 +89,10 @@ function main() {
   const vetArancibia = user('camilo.arancibia@vetcura.local', 'vet', 'Dr. Camilo Arancibia');
   const vetRuiz = user('francisca.ruiz@vetcura.local', 'vet', 'Dra. Francisca Ruiz');
   const vetMorales = user('ignacio.morales@vetcura.local', 'vet', 'Dr. Ignacio Morales');
+  db.prepare("UPDATE users SET professional_id = 'MP-20451' WHERE id = ?").run(vetTorres);
+  db.prepare("UPDATE users SET professional_id = 'MP-31770' WHERE id = ?").run(vetArancibia);
+  db.prepare("UPDATE users SET professional_id = 'MP-42883' WHERE id = ?").run(vetRuiz);
+  db.prepare("UPDATE users SET professional_id = 'MP-53996' WHERE id = ?").run(vetMorales);
   const schedule = (id, days, start, end) => {
     for (const day of days) {
       db.prepare('INSERT INTO vet_availability (vet_user_id, weekday, start_min, end_min) VALUES (?, ?, ?, ?)').run(id, day, start, end);

@@ -15,6 +15,10 @@ const consultationSchema = z.object({
   diagnosis: z.string().min(1).max(2000),
   treatment: z.string().max(2000).nullable().optional(),
   notes: z.string().max(4000).nullable().optional(),
+  // Trial detailed history: internal detail stays staff-only; the client
+  // sees client_summary + prescription + exams + invoice only.
+  internal_notes: z.string().max(4000).nullable().optional(),
+  client_summary: z.string().min(1).max(500).nullable().optional(),
   allergies: z.array(z.string().min(1).max(200)).max(50).default([]),
 });
 
@@ -49,12 +53,15 @@ function buildClinicalRoutes(db) {
       const created = db
         .prepare(
           `INSERT INTO consultations
-             (appointment_id, pet_id, vet_user_id, weight_kg, diagnosis, treatment, notes)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+             (appointment_id, pet_id, vet_user_id, weight_kg, diagnosis, treatment, notes,
+              internal_notes, client_summary)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           body.appointment_id ?? null, body.pet_id, req.user.sub,
           body.weight_kg ?? null, body.diagnosis, body.treatment || null, body.notes || null,
+          body.internal_notes || null,
+          body.client_summary || 'Atención veterinaria realizada. Consultá la receta y la factura para más detalles.',
         );
       const id = Number(created.lastInsertRowid);
       const insertAllergy = db.prepare(
@@ -116,11 +123,33 @@ function buildClinicalRoutes(db) {
       const vaccinations = db
         .prepare('SELECT * FROM vaccinations WHERE pet_id = ? ORDER BY due_date DESC')
         .all(pet.id);
+      const isStaff = STAFF.includes(req.user.role);
       res.json({
-        consultations: consultations.map((c) => ({
-          ...c,
-          allergies: byConsultation.get(c.id) || [],
-        })),
+        consultations: consultations.map((c) => {
+          const base = {
+            id: c.id,
+            pet_id: c.pet_id,
+            created_at: c.created_at,
+            vet_name: c.vet_name,
+            weight_kg: c.weight_kg,
+            allergies: byConsultation.get(c.id) || [],
+          };
+          // Trial visibility split: owners see the generic summary (plus
+          // prescription/exams/invoice through their own endpoints);
+          // internal detail stays with staff.
+          if (isStaff) {
+            return {
+              ...base,
+              appointment_id: c.appointment_id,
+              diagnosis: c.diagnosis,
+              treatment: c.treatment,
+              notes: c.notes,
+              internal_notes: c.internal_notes,
+              client_summary: c.client_summary,
+            };
+          }
+          return { ...base, client_summary: c.client_summary };
+        }),
         vaccinations,
       });
     } catch (err) {

@@ -192,7 +192,48 @@ const MIGRATIONS = [
   ;
   CREATE UNIQUE INDEX idx_invoices_number ON invoices(number)
   ;`,
-  `ALTER TABLE invoices ADD COLUMN vet_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL
+  `  ALTER TABLE invoices ADD COLUMN vet_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL
+  ;`,
+  `ALTER TABLE consultations ADD COLUMN internal_notes TEXT
+  ;
+  ALTER TABLE consultations ADD COLUMN client_summary TEXT
+  ;
+  ALTER TABLE pets ADD COLUMN color TEXT
+  ;
+  ALTER TABLE users ADD COLUMN professional_id TEXT
+  ;
+  CREATE TABLE consultation_attachments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    consultation_id INTEGER NOT NULL REFERENCES consultations(id) ON DELETE CASCADE,
+    filename TEXT NOT NULL,
+    mime TEXT NOT NULL DEFAULT 'application/pdf',
+    size_bytes INTEGER NOT NULL,
+    uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')))
+  ;
+  CREATE INDEX idx_attachments_consult ON consultation_attachments(consultation_id)
+  ;
+  CREATE TABLE prescriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    consultation_id INTEGER NOT NULL UNIQUE REFERENCES consultations(id) ON DELETE CASCADE,
+    recommendations TEXT,
+    warning_signs TEXT,
+    recheck TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')))
+  ;
+  CREATE TABLE prescription_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prescription_id INTEGER NOT NULL REFERENCES prescriptions(id) ON DELETE CASCADE,
+    item_no INTEGER NOT NULL,
+    medication_name TEXT NOT NULL,
+    form TEXT NOT NULL,
+    strength_mg REAL,
+    administration TEXT NOT NULL,
+    qty_per_dose REAL NOT NULL CHECK (qty_per_dose > 0),
+    times_per_day INTEGER NOT NULL CHECK (times_per_day > 0),
+    duration_days INTEGER NOT NULL CHECK (duration_days > 0),
+    total_units REAL NOT NULL,
+    UNIQUE (prescription_id, item_no))
   ;`,
 ];
 

@@ -11,6 +11,12 @@ const upload = multer({
   limits: { fileSize: MAX_BYTES, files: 1 },
 });
 
+// Lab reports may legitimately exceed the photo cap: dedicated 10 MB lane.
+const uploadPDF = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+});
+
 // Real type from magic bytes — never trust extension or Content-Type.
 function detectImage(buffer) {
   if (buffer.length > 8 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
@@ -65,9 +71,19 @@ function saveUpload(prefix, buffer) {
 
 function multerErrorHandler(err, req, res, next) {
   if (err && err.code === 'LIMIT_FILE_SIZE') {
-    return next(apiError('validation_error', 'Image exceeds the 2 MB limit', 413));
+    return next(apiError('validation_error', 'File exceeds the size limit', 413));
   }
   return next(err);
 }
 
-module.exports = { upload, detectImage, saveUpload, multerErrorHandler, uploadDir, MAX_BYTES };
+// PDF-only lane for lab exams (magic bytes, never extension alone).
+function saveUploadPDF(prefix, buffer) {
+  if (!(buffer.length > 5 && buffer.toString('ascii', 0, 5) === '%PDF-')) {
+    throw apiError('validation_error', 'Only PDF files are accepted', 415);
+  }
+  const name = `${prefix}-${Date.now()}-${Math.round(Math.random() * 1e6)}.pdf`;
+  fs.writeFileSync(path.join(uploadDir(), name), buffer);
+  return { filename: name, mime: 'application/pdf' };
+}
+
+module.exports = { upload, uploadPDF, detectImage, saveUpload, saveUploadPDF, multerErrorHandler, uploadDir, MAX_BYTES };

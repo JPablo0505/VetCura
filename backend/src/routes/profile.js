@@ -171,7 +171,7 @@ function serveUpload(res, filename, next) {
     return undefined;
   }
   const ext = path.extname(safe).toLowerCase();
-  const mime = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+  const mime = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : ext === '.pdf' ? 'application/pdf' : 'image/jpeg';
   res.set('Content-Type', mime);
   res.set('X-Content-Type-Options', 'nosniff');
   res.set('Cache-Control', 'private, max-age=3600');
