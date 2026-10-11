@@ -1259,8 +1259,9 @@ fun InvoiceScreen(api: VetCuraApi, auth: String, invoiceId: Int) {
                         Text("Mascota: ${inv.pet_name ?: "—"}")
                         Text("Fecha: ${inv.issued_at?.let { friendlyDate(it) } ?: "—"}")
                         Text("Estado: ${friendlyInvoiceStatus(inv.status)}")
+                        if (inv.vet_name != null) Text("Atendido por: ${inv.vet_name}")
                         if (inv.status == "paid") {
-                            Text("Pagada con ${friendlyMethod(inv.payment_method)}${inv.paid_at?.let { " el ${friendlyDate(it)}" } ?: ""}")
+                            Text("Método: ${friendlyMethod(inv.payment_method)}${inv.paid_at?.let { " · ${friendlyDate(it)}" } ?: ""}")
                         }
                     }
                 }

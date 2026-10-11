@@ -97,6 +97,7 @@ data class Invoice(
     val issued_at: String? = null,
     val owner_name: String? = null,
     val pet_name: String? = null,
+    val vet_name: String? = null,
     val items: List<InvoiceItem> = emptyList(),
 )
 data class PayRequest(val payment_method: String)
