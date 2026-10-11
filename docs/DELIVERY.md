@@ -56,6 +56,9 @@ not marked fully verified end-to-end.
   armed, no session minted.
 - APK rebuilt with the web audience as `googleClientId` (verified in
   generated `BuildConfig`); the Google button now appears in the app.
+- Seed grown for demos: 5 vets with schedules, 8 owners, 12 pets,
+  mixed appointments/consultations/vaccinations, numbered invoices
+  with attending vet (15 users, 8 owners, 12 pets verified on clean seed).
 - Google Sign-In is NOT marked verified: the five `docs/OAUTH.md`
   checks need a real Google account on the phone (steps below in the
   handoff).
