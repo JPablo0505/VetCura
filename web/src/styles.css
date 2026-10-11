@@ -85,6 +85,13 @@ a { color: var(--primary); }
 .progress i { display: block; height: 100%; background: var(--primary); border-radius: 999px; }
 
 .pet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; }
+/* Doctor cards stack full-width: weekly tables need room even with many vets. */
+.doctor-list { display: grid; gap: 1rem; grid-template-columns: 1fr; }
+@media (min-width: 1100px) {
+  .doctor-list { grid-template-columns: 1fr 1fr; }
+}
+.table-wrap { overflow-x: auto; margin: 0 -0.2rem; }
+.table-wrap table { min-width: 420px; }
 .pet-card { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
 .pet-card img { width: 100%; height: 150px; object-fit: cover; display: block; }
 .pet-card .body { padding: 1rem 1.1rem 1.2rem; }

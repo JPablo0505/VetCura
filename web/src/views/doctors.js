@@ -20,7 +20,7 @@ export async function DoctorsView(root) {
     root.innerHTML = `
       <h1>Doctores y Disponibilidad</h1>
       <p class="subtitle">Las citas solo pueden reservarse dentro de estos horarios. Sin rangos, el doctor figura sin horas libres.</p>
-      <div class="cards">${cards || '<div class="empty">Sin veterinarios.</div>'}</div>
+      <div class="doctor-list">${cards || '<div class="empty">Sin veterinarios.</div>'}</div>
       <div id="msg"></div>`;
     for (const vet of vets.vets) {
       const card = root.querySelector(`[data-vet="${vet.id}"] .ranges`);
@@ -37,7 +37,7 @@ export async function DoctorsView(root) {
           )
           .join('');
         card.innerHTML = `
-          ${rows ? `<table><thead><tr><th>Día</th><th>Horario</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">Sin horarios definidos.</div>`}
+          ${rows ? `<div class="table-wrap"><table><thead><tr><th>Día</th><th>Horario</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : `<div class="empty">Sin horarios definidos.</div>`}
           <form class="inline" data-add="${vet.id}">
             <select name="weekday">${DAYS.map((d, i) => `<option value="${i}">${d}</option>`).join('')}</select>
             <input name="start" type="time" value="08:00" required />
