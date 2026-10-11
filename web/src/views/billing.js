@@ -10,7 +10,8 @@ export async function BillingView(root) {
       .map((i) => {
         const cls = i.status === 'paid' ? 'ok' : i.status === 'issued' ? 'info' : i.status === 'void' ? 'bad' : '';
         return `<tr><td>${i.number || `#${i.id} borrador`}</td><td>${i.owner_id}</td><td>${cop(i.total_cents)}</td><td><span class="badge ${cls}">${STATUS_LABEL[i.status] || i.status}</span></td>
-          <td><button data-act="issued" data-id="${i.id}" class="secondary">Emitir y enviar</button>
+          <td><button data-view="${i.id}" class="secondary">Ver</button>
+          <button data-act="issued" data-id="${i.id}" class="secondary">Emitir y enviar</button>
           <button data-act="paid" data-id="${i.id}" class="secondary">Cobrar</button></td></tr>`;
       })
       .join('');
@@ -35,8 +36,55 @@ export async function BillingView(root) {
         <input name="unit_price_cents" type="number" min="0" placeholder="Precio (centavos; ej. 280000 = $2.800)" />
         <button>Añadir</button>
       </form>
-      <div id="msg"></div>`;
+      <div id="msg"></div>
+      <div id="preview"></div>`;
     const msg = () => root.querySelector('#msg');
+    root.querySelectorAll('button[data-view]').forEach((b) => {
+      b.onclick = async () => {
+        const box = root.querySelector('#preview');
+        box.innerHTML = '<p>Cargando factura…</p>';
+        try {
+          const [detail, clinic] = await Promise.all([
+            api(`/invoices/${b.dataset.view}`),
+            api('/clinic'),
+          ]);
+          const inv = detail.invoice;
+          const c = clinic.clinic;
+          const items = inv.items
+            .map(
+              (it) =>
+                `<tr><td>${it.description}</td><td>${it.qty}</td><td>${cop(it.unit_price_cents)}</td><td>${cop(it.line_total_cents)}</td></tr>`,
+            )
+            .join('');
+          box.innerHTML = `
+            <div class="receipt" id="receipt">
+              <div class="receipt-head">
+                <div><div class="receipt-title">VETERINARIO</div><div>${c.name}<br/>NIT: ${c.nit}<br/>${c.address} · ${c.city}</div></div>
+                <div class="receipt-number">FACTURA DE VENTA<br/><strong>${inv.number || `#${inv.id} (borrador)`}</strong></div>
+              </div>
+              <div class="receipt-meta">
+                <span><strong>Cliente:</strong> ${inv.owner_name || inv.owner_id}</span>
+                <span><strong>Mascota:</strong> ${inv.pet_name || ''}</span>
+                <span><strong>Fecha:</strong> ${inv.issued_at ? new Date(inv.issued_at).toLocaleDateString('es-CO') : '—'}</span>
+                <span><strong>Estado:</strong> ${STATUS_LABEL[inv.status] || inv.status}</span>
+                ${inv.status === 'paid' ? `<span><strong>Pagada:</strong> ${inv.payment_method || ''} ${inv.paid_at ? new Date(inv.paid_at).toLocaleString('es-CO') : ''}</span>` : ''}
+              </div>
+              <table><thead><tr><th>Descripción</th><th>Cant.</th><th>Precio unit.</th><th>Subtotal</th></tr></thead><tbody>${items || '<tr><td colspan="4">Sin conceptos.</td></tr>'}</tbody></table>
+              <div class="receipt-totals">
+                <div>Sub Total: <strong>${cop(inv.subtotal_cents)}</strong></div>
+                <div>IVA (19%): <strong>${cop(inv.tax_cents)}</strong></div>
+                <div class="grand">Total a Pagar: <strong>${cop(inv.total_cents)}</strong></div>
+              </div>
+              <p class="thanks">Gracias por su compra.</p>
+              <p><button class="secondary" id="print">Imprimir</button></p>
+            </div>`;
+          box.querySelector('#print').onclick = () => window.print();
+          box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } catch (err) {
+          msg().innerHTML = `<div class="alert error">${err.message}</div>`;
+        }
+      };
+    });
     root.querySelectorAll('button[data-act]').forEach((b) => {
       b.onclick = async () => {
         try {
