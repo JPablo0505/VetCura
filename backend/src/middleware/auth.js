@@ -9,8 +9,9 @@ function signToken(user) {
   return jwt.sign(
     { sub: user.id, role: user.role, email: user.email },
     getSecret(),
-    // Short-lived access tokens; renewal goes through refresh rotation.
-    { expiresIn: process.env.JWT_EXPIRES_IN || '30m' },
+    // Admin sessions last a full shift; renewal still goes through
+    // refresh rotation when the access token eventually expires.
+    { expiresIn: process.env.JWT_EXPIRES_IN || '4h' },
   );
 }
 
