@@ -33,6 +33,7 @@ data class Pet(
     val name: String,
     val species: String,
     val breed: String?,
+    val color: String?,
     val birthdate: String?,
     val sex: String,
     val weight_kg: Double?,
@@ -48,11 +49,17 @@ data class Vaccination(
     val given_date: String?,
 )
 data class Measurement(val weight_kg: Double, val date: String, val source: String)
+data class PrescriptionItem(val item_no: Int, val medication_name: String, val form: String, val strength_mg: Double?, val administration: String, val qty_per_dose: Double, val times_per_day: Int, val duration_days: Int, val total_units: Double)
+data class Prescription(val id: Int, val recommendations: String?, val warning_signs: String?, val recheck: String?, val created_at: String, val items: List<PrescriptionItem>, val pet_name: String = "", val species: String = "", val breed: String? = null, val owner_name: String = "", val vet_name: String = "", val vet_professional_id: String? = null, val pet_id: Int = 0)
+data class PrescriptionResponse(val prescription: Prescription)
+data class ExamFile(val id: Int, val filename: String, val mime: String, val size_bytes: Int, val created_at: String)
+data class ExamsResponse(val exams: List<ExamFile>)
 data class PetDetailResponse(val pet: Pet, val vaccinations: List<Vaccination>, val measurements: List<Measurement> = emptyList())
 data class PetPatch(
     val name: String? = null,
     val species: String? = null,
     val breed: String? = null,
+    val color: String? = null,
     val birthdate: String? = null,
     val sex: String? = null,
     val weight_kg: Double? = null,
@@ -78,10 +85,11 @@ data class AppointmentRequest(
 )
 data class Consultation(
     val id: Int,
-    val diagnosis: String,
-    val treatment: String?,
+    val diagnosis: String? = null,
+    val treatment: String? = null,
+    val client_summary: String? = null,
     val created_at: String,
-    val allergies: List<String>,
+    val allergies: List<String> = emptyList(),
 )
 data class HistoryResponse(val consultations: List<Consultation>, val vaccinations: List<Vaccination>)
 data class InvoiceItem(val id: Int, val description: String, val qty: Int, val line_total_cents: Int)
@@ -161,6 +169,9 @@ interface VetCuraApi {
     @PATCH("pets/{id}") suspend fun updatePet(@Header("Authorization") auth: String, @Path("id") id: Int, @Body body: PetPatch): PetDetailResponse
     @Multipart @POST("pets/{id}/photo") suspend fun uploadPetPhoto(@Header("Authorization") auth: String, @Path("id") id: Int, @Part photo: MultipartBody.Part): Map<String, String>
     @GET("pets/{id}/history") suspend fun history(@Header("Authorization") auth: String, @Path("id") id: Int): HistoryResponse
+    @GET("consultations/{id}/prescription") suspend fun prescription(@Header("Authorization") auth: String, @Path("id") id: Int): PrescriptionResponse
+    @GET("consultations/{id}/exams") suspend fun exams(@Header("Authorization") auth: String, @Path("id") id: Int): ExamsResponse
+    @GET("consultations/{cid}/exams/{id}") suspend fun examBytes(@Header("Authorization") auth: String, @Path("cid") cid: Int, @Path("id") id: Int): ResponseBody
     @GET("appointments") suspend fun appointments(@Header("Authorization") auth: String): AppointmentsResponse
     @POST("appointments") suspend fun book(@Header("Authorization") auth: String, @Body body: AppointmentRequest): Map<String, Appointment>
     @GET("vaccinations/alerts") suspend fun alerts(@Header("Authorization") auth: String): AlertsResponse

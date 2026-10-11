@@ -83,8 +83,7 @@ fun photoFor(petId: Int, species: String): Int {
     return pool[petId % pool.size]
 }
 
-fun ageYears(birthdate: String?): String {
-    if (birthdate == null) return "—"
+fun ageYears(birthdate: String?): String {    if (birthdate == null) return "—"
     return try {
         val born = java.time.LocalDate.parse(birthdate)
         val years = java.time.Period.between(born, java.time.LocalDate.now()).years
@@ -92,6 +91,12 @@ fun ageYears(birthdate: String?): String {
     } catch (_: Exception) {
         "—"
     }
+}
+
+fun sexLabel(sex: String?): String = when (sex) {
+    "male" -> "Macho"
+    "female" -> "Hembra"
+    else -> "—"
 }
 
 @Composable
@@ -363,7 +368,7 @@ fun HomeScreen(
                                     }
                                     Column(Modifier.padding(12.dp), Arrangement.spacedBy(4.dp)) {
                                         Text(pet.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                        Text("${pet.breed ?: pet.species} · ${ageYears(pet.birthdate)}")
+                                        Text("${pet.breed ?: pet.species} · ${ageYears(pet.birthdate)} · ${sexLabel(pet.sex)}${pet.color?.let { " · $it" } ?: ""}")
                                         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                                             Column {
                                                 Text("Peso Actual", style = MaterialTheme.typography.labelSmall)
@@ -528,7 +533,7 @@ fun HistoryAllScreen(api: VetCuraApi, auth: String, onPet: (Int) -> Unit) {
                 val all = mutableListOf<Pair<Int, TimelineEntry>>()
                 for ((pet, h) in perPet) {
                     for (c in h.consultations) {
-                        all.add(pet.id to TimelineEntry(c.created_at, "${pet.name} · ${c.diagnosis}", c.treatment ?: ""))
+                        all.add(pet.id to TimelineEntry(c.created_at, "${pet.name} · ${c.client_summary ?: "Atención veterinaria"}", ""))
                     }
                     for (v in h.vaccinations) {
                         val state = if (v.given_date == null) "Pendiente (vence ${v.due_date})" else "Aplicada el ${v.given_date}"
@@ -979,6 +984,7 @@ fun HistoryScreen(api: VetCuraApi, auth: String, petId: Int) {
     var name by remember { mutableStateOf("") }
     var species by remember { mutableStateOf("") }
     var breed by remember { mutableStateOf("") }
+    var color by remember { mutableStateOf("") }
     var birthdate by remember { mutableStateOf("") }
     var weightAdd by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
@@ -995,6 +1001,7 @@ fun HistoryScreen(api: VetCuraApi, auth: String, petId: Int) {
             name = d.pet.name
             species = d.pet.species
             breed = d.pet.breed ?: ""
+            color = d.pet.color ?: ""
             birthdate = d.pet.birthdate ?: ""
             val h = data.second
             state = UiState.History(h.consultations, h.vaccinations)
@@ -1038,7 +1045,7 @@ fun HistoryScreen(api: VetCuraApi, auth: String, petId: Int) {
                                 }
                                 if (!editing) {
                                     Text(d.pet.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                                    Text("${d.pet.species}${d.pet.breed?.let { " · $it" } ?: ""} · ${ageYears(d.pet.birthdate)}")
+                                    Text("${d.pet.species}${d.pet.breed?.let { " · $it" } ?: ""} · ${ageYears(d.pet.birthdate)} · ${sexLabel(d.pet.sex)}${d.pet.color?.let { " · $it" } ?: ""}")
                                     Text("Peso: ${d.pet.weight_kg?.toString() ?: "—"} kg")
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         OutlinedButton(onClick = { editing = true }) { Text("Editar datos") }
@@ -1048,6 +1055,7 @@ fun HistoryScreen(api: VetCuraApi, auth: String, petId: Int) {
                                     OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Nombre") })
                                     OutlinedTextField(species, { species = it }, Modifier.fillMaxWidth(), label = { Text("Especie") })
                                     OutlinedTextField(breed, { breed = it }, Modifier.fillMaxWidth(), label = { Text("Raza") })
+                                    OutlinedTextField(color, { color = it }, Modifier.fillMaxWidth(), label = { Text("Color") })
                                     OutlinedTextField(birthdate, { birthdate = it }, Modifier.fillMaxWidth(), label = { Text("Nacimiento (AAAA-MM-DD)") })
                                     OutlinedTextField(weightAdd, { weightAdd = it }, Modifier.fillMaxWidth(), label = { Text("Nuevo peso en kg (se registra fechado)") })
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1065,6 +1073,7 @@ fun HistoryScreen(api: VetCuraApi, auth: String, petId: Int) {
                                                             name = name.ifBlank { null },
                                                             species = species.ifBlank { null },
                                                             breed = breed.ifBlank { null },
+                                                            color = color.ifBlank { null },
                                                             birthdate = birthdate.ifBlank { null },
                                                             weight_kg = w,
                                                         ),
@@ -1100,10 +1109,10 @@ fun HistoryScreen(api: VetCuraApi, auth: String, petId: Int) {
                 items(s.consultations) { c ->
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(16.dp)) {
-                            Text(c.diagnosis, style = MaterialTheme.typography.titleMedium)
+                            Text(c.client_summary ?: "Atención veterinaria", style = MaterialTheme.typography.titleMedium)
                             Text(friendlyDate(c.created_at))
-                            c.treatment?.let { Text("Tratamiento: $it") }
-                            if (c.allergies.isNotEmpty()) Text("Alergias: ${c.allergies.joinToString()}")
+                            PrescriptionCard(api, auth, c.id)
+                            ExamList(api, auth, c.id)
                         }
                     }
                 }
@@ -1129,6 +1138,92 @@ private fun formatCOP(cents: Int): String {
     val pesos = Math.round(cents / 100.0)
     val grouped = java.text.NumberFormat.getInstance(java.util.Locale("es", "CO")).format(pesos)
     return "$ $grouped"
+}
+
+private fun roman(n: Int): String {
+    var rest = n
+    var out = ""
+    for ((v, s) in listOf(10 to "X", 9 to "IX", 5 to "V", 4 to "IV", 1 to "I")) {
+        while (rest >= v) {
+            out += s
+            rest -= v
+        }
+    }
+    return out.ifBlank { "—" }
+}
+
+@Composable
+private fun PrescriptionCard(api: VetCuraApi, auth: String, consultationId: Int) {
+    var prescription by remember(consultationId) { mutableStateOf<com.vetcura.app.data.Prescription?>(null) }
+    LaunchedEffect(consultationId) {
+        prescription = try {
+            api.prescription("Bearer $auth", consultationId).prescription
+        } catch (_: Exception) {
+            null
+        }
+    }
+    val p = prescription ?: return
+    Card(
+        Modifier.fillMaxWidth().padding(top = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+    ) {
+        Column(Modifier.padding(14.dp), Arrangement.spacedBy(4.dp)) {
+            Text("Receta médica", fontWeight = FontWeight.Bold)
+            Text("${p.pet_name} · ${p.species}${p.breed?.let { " · $it" } ?: ""}", style = MaterialTheme.typography.bodySmall)
+            p.items.forEach { item ->
+                Text("${roman(item.item_no)} · ${item.medication_name} (${item.form})${item.strength_mg?.let { " $it mg" } ?: ""}")
+                Text(item.administration, style = MaterialTheme.typography.bodySmall)
+                Text("#${item.total_units.toInt()} unidades", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+            }
+            if (!p.recommendations.isNullOrBlank()) Text("Recomendaciones: ${p.recommendations}", style = MaterialTheme.typography.bodySmall)
+            if (!p.warning_signs.isNullOrBlank()) Text("Signos de alerta: ${p.warning_signs}", style = MaterialTheme.typography.bodySmall)
+            if (!p.recheck.isNullOrBlank()) Text("Revisión: ${p.recheck}", style = MaterialTheme.typography.bodySmall)
+            Text("${p.vet_name} · MP ${p.vet_professional_id ?: "—"}", style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun ExamList(api: VetCuraApi, auth: String, consultationId: Int) {
+    var exams by remember(consultationId) { mutableStateOf<List<com.vetcura.app.data.ExamFile>>(emptyList()) }
+    var message by remember(consultationId) { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(consultationId) {
+        exams = try {
+            api.exams("Bearer $auth", consultationId).exams
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+    if (exams.isEmpty()) return
+    Column(modifier = Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("Exámenes de laboratorio", fontWeight = FontWeight.Bold)
+        exams.forEach { exam ->
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                Text(exam.filename, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                OutlinedButton(onClick = {
+                    scope.launch {
+                        try {
+                            val body = api.examBytes("Bearer $auth", consultationId, exam.id)
+                            val file = java.io.File(context.cacheDir, exam.filename)
+                            body.byteStream().use { src -> file.outputStream().use { dst -> src.copyTo(dst) } }
+                            val uri = androidx.core.content.FileProvider.getUriForFile(
+                                context, "${context.packageName}.fileprovider", file,
+                            )
+                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW)
+                                .setDataAndType(uri, "application/pdf")
+                                .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            context.startActivity(android.content.Intent.createChooser(intent, "Abrir examen"))
+                        } catch (e: Exception) {
+                            message = "No se pudo abrir: ${friendlyError(e)}"
+                        }
+                    }
+                }) { Text("Abrir") }
+            }
+        }
+        message?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    }
 }
 
 private fun friendlyStatus(status: String): String = when (status) {
