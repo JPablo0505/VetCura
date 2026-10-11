@@ -44,9 +44,9 @@ computed units, vet signature); pet color everywhere + sex display.
 ## Verification evidence
 
 - `backend: npm test` → 85/85 (79 + 6 clinical-plus).
-- Migration v5 verified implicitly: clean `:memory:` suites create all
-  tables; existing-DB path covered by the same atomic migrator
-  (v1→v5 chain reuses the proven mechanism).
+- Migration v6 verified implicitly: clean `:memory:` suites create all
+  tables; the v1→v6 chain was verified on a data-bearing DB (all rows
+  intact, all tables present).
 - `web: npm run build` OK (exams, prescriptions, pet edit, color/sex).
 - `android: assembleDebug` BUILD SUCCESSFUL (prescription card with
   Roman numerals, exam open via FileProvider, color edit).
