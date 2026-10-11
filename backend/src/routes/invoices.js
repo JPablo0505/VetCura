@@ -17,6 +17,7 @@ const TRANSITIONS = {
 
 const invoiceSchema = z.object({
   pet_id: z.number().int().positive(),
+  vet_user_id: z.number().int().positive().nullable().optional(),
 });
 
 const itemSchema = z.object({
@@ -49,10 +50,11 @@ function recomputeTotals(db, invoiceId) {
 function serializeInvoice(db, id) {
   const invoice = db
     .prepare(
-      `SELECT i.*, u.display_name AS owner_name, p.name AS pet_name
+      `SELECT i.*, u.display_name AS owner_name, p.name AS pet_name, v.display_name AS vet_name
        FROM invoices i
        JOIN users u ON u.id = i.owner_id
        JOIN pets p ON p.id = i.pet_id
+       LEFT JOIN users v ON v.id = i.vet_user_id
        WHERE i.id = ?`,
     )
     .get(id);
@@ -108,9 +110,13 @@ function buildInvoiceRoutes(db) {
       const body = validate(invoiceSchema, req.body);
       const pet = db.prepare('SELECT id, owner_id FROM pets WHERE id = ?').get(body.pet_id);
       if (!pet) throw apiError('not_found', 'Pet not found', 404);
+      if (body.vet_user_id) {
+        const vet = db.prepare("SELECT id FROM users WHERE id = ? AND role IN ('vet','admin')").get(body.vet_user_id);
+        if (!vet) throw apiError('not_found', 'Veterinarian not found', 404);
+      }
       const created = db
-        .prepare("INSERT INTO invoices (pet_id, owner_id, status) VALUES (?, ?, 'draft')")
-        .run(body.pet_id, pet.owner_id);
+        .prepare("INSERT INTO invoices (pet_id, owner_id, vet_user_id, status) VALUES (?, ?, ?, 'draft')")
+        .run(body.pet_id, pet.owner_id, body.vet_user_id ?? null);
       res.status(201).json({ invoice: serializeInvoice(db, Number(created.lastInsertRowid)) });
     } catch (err) {
       next(err);

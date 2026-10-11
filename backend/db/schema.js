@@ -192,6 +192,8 @@ const MIGRATIONS = [
   ;
   CREATE UNIQUE INDEX idx_invoices_number ON invoices(number)
   ;`,
+  `ALTER TABLE invoices ADD COLUMN vet_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL
+  ;`,
 ];
 
 // NOTE: keep this SQL free of ';' inside string literals or comments:

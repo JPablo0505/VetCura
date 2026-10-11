@@ -123,4 +123,13 @@ describe('receipt header', () => {
     assert.equal(r.status, 200);
     assert.ok(r.json.clinic.name && r.json.clinic.nit);
   });
+
+  it('attributes the attending vet and rejects non-vets', async () => {
+    const noVet = await api('POST', '/invoices', global.t.admin, { pet_id: global.ids.petA, vet_user_id: 9999 });
+    assert.equal(noVet.status, 404);
+    const vetId = db.prepare("INSERT INTO users (email, role, display_name) VALUES ('vetx@t.local', 'vet', 'Vet X') RETURNING id").get().id;
+    const ok = await api('POST', '/invoices', global.t.admin, { pet_id: global.ids.petA, vet_user_id: vetId });
+    assert.equal(ok.status, 201);
+    assert.equal(ok.json.invoice.vet_name, 'Vet X');
+  });
 });
