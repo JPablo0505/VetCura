@@ -15,6 +15,22 @@ async function loadAuthPhoto(img, path, fallback) {
   }
 }
 
+const SEX_LABEL = { male: 'Macho', female: 'Hembra', unknown: '—' };
+
+// Roman numerals for prescription item numbers (I, II, III…).
+function roman(n) {
+  const table = [[10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];
+  let out = '';
+  let rest = n;
+  for (const [v, s] of table) {
+    while (rest >= v) {
+      out += s;
+      rest -= v;
+    }
+  }
+  return out || '—';
+}
+
 export async function PatientsView(root, q = '') {
   root.innerHTML = '<h1>Pacientes e Historial</h1><p>Cargando…</p>';
   try {
@@ -37,6 +53,7 @@ export async function PatientsView(root, q = '') {
           <div class="body">
             <h3>${p.name}</h3>
             <div class="meta">${p.species}${p.breed ? ` · ${p.breed}` : ''}${age !== null ? ` · ${age} años` : ''} · ${ownerName[p.owner_id] || '—'}</div>
+            <div class="meta">Sexo: ${SEX_LABEL[p.sex] || '—'}${p.color ? ` · Color: ${p.color}` : ''}</div>
             <div class="meta">Peso: ${p.weight_kg ?? '—'} kg</div>
             <p><a href="#/pacientes/${p.id}"><button>Ver Carnet Clínico</button></a></p>
           </div>
@@ -56,6 +73,7 @@ export async function PatientsView(root, q = '') {
         <input name="name" placeholder="Nombre" required />
         <input name="species" placeholder="Especie (dog, cat…)" required />
         <input name="breed" placeholder="Raza" />
+        <input name="color" placeholder="Color (ej. Tricolor: negro, marrón y blanco)" />
         <input name="birthdate" type="date" />
         <select name="sex"><option value="unknown">Sexo…</option><option value="male">Macho</option><option value="female">Hembra</option></select>
         <input name="weight_kg" type="number" step="0.1" min="0" placeholder="Peso (kg)" />
@@ -77,6 +95,7 @@ export async function PatientsView(root, q = '') {
             name: fd.get('name'),
             species: fd.get('species'),
             breed: fd.get('breed') || null,
+            color: fd.get('color') || null,
             birthdate: fd.get('birthdate') || null,
             sex: fd.get('sex') || 'unknown',
             weight_kg: fd.get('weight_kg') ? Number(fd.get('weight_kg')) : null,
@@ -151,6 +170,18 @@ export async function PatientDetailView(root, id) {
       <p><a href="#/pacientes">‹ Volver a pacientes</a></p>
       <h1>${p.name} <span class="badge info">${p.species}${p.breed ? ` · ${p.breed}` : ''}</span></h1>
       <p class="subtitle">Consulta clínica: anamnesis, tratamiento y liquidación. Guardar la ficha la hace visible de inmediato en la app móvil del propietario.</p>
+      <p class="subtitle">Sexo: <strong>${SEX_LABEL[p.sex] || '—'}</strong>${p.color ? ` · Color: <strong>${p.color}</strong>` : ''}</p>
+      <div class="phase"><span class="phase-tag">Datos</span>
+        <h2>Editar datos de la mascota</h2>
+        <form class="inline" id="pet-edit">
+          <input name="name" placeholder="Nombre" value="${(p.name || '').replace(/"/g, '&quot;')}" required />
+          <input name="breed" placeholder="Raza" value="${(p.breed || '').replace(/"/g, '&quot;')}" />
+          <input name="color" placeholder="Color" value="${(p.color || '').replace(/"/g, '&quot;')}" />
+          <input name="birthdate" type="date" value="${p.birthdate || ''}" />
+          <select name="sex"><option value="unknown">Sexo…</option><option value="male"${p.sex === 'male' ? ' selected' : ''}>Macho</option><option value="female"${p.sex === 'female' ? ' selected' : ''}>Hembra</option></select>
+          <button>Guardar datos</button>
+        </form>
+      </div>
       <div class="cards">
         <div class="card"><img src="${petPhoto(p.id, p.species)}" alt="Foto de ${p.name}" style="width:100%;height:140px;object-fit:cover;border-radius:12px" /><div class="label" style="margin-top:.5rem">Edad</div><div class="kpi">${age} <small>años</small></div></div>
         <div class="card"><div class="label">Peso actual</div><div class="kpi">${p.weight_kg ?? '—'} <small>kg</small></div><h2 style="font-size:.95rem">Evolución</h2>${sparkline(weight.history)}</div>
@@ -173,6 +204,8 @@ export async function PatientDetailView(root, id) {
           <input name="diagnosis" placeholder="Diagnóstico" required style="flex:2;min-width:200px" />
           <input name="treatment" placeholder="Tratamiento" style="flex:2;min-width:200px" />
           <input name="allergies" placeholder="Alergias (coma)" />
+          <input name="client_summary" placeholder="Resumen para el cliente (ej. Revisión general…)" style="flex:2;min-width:220px" />
+          <input name="internal_notes" placeholder="Notas internas (solo veterinarios)" style="flex:2;min-width:220px" />
           <button>Guardar Ficha y Enviar a App Móvil</button>
         </form>
       </div>
@@ -188,6 +221,31 @@ export async function PatientDetailView(root, id) {
 
       <div id="msg"></div>
 
+      <div class="phase"><span class="phase-tag">Exámenes</span>
+        <h2>Exámenes de laboratorio (PDF)</h2>
+        <p class="subtitle">El laboratorio entrega el PDF; el médico lo adjunta y llega al cliente.</p>
+        <form class="inline" id="exam" enctype="multipart/form-data">
+          <select name="consultation_id" id="exam-consult" required></select>
+          <input name="exam" type="file" accept="application/pdf" required />
+          <button>Adjuntar PDF (máx. 10 MB)</button>
+        </form>
+        <div id="exam-list"></div>
+      </div>
+
+      <div class="phase"><span class="phase-tag">Receta</span>
+        <h2>Receta de medicamentos</h2>
+        <p class="subtitle">Una por consulta. Unidades calculadas en el servidor (cantidad × tomas × días).</p>
+        <form class="inline" id="presc-meta">
+          <select name="consultation_id" id="presc-consult" required></select>
+          <input name="recommendations" placeholder="Recomendaciones" style="flex:2;min-width:200px" />
+          <input name="warning_signs" placeholder="Signos de alerta" style="flex:2;min-width:200px" />
+          <input name="recheck" placeholder="Revisión (ej. En 1 semana)" />
+        </form>
+        <div id="presc-items"></div>
+        <p><button class="secondary" id="presc-add">+ Concepto</button> <button id="presc-save">Emitir receta</button></p>
+        <div id="presc-view"></div>
+      </div>
+
       <div class="phase"><span class="phase-tag">Fase 3 · Cierre</span>
         <h2>Card 3 · Liquidación</h2>
         <p class="subtitle">Crea el borrador y suma conceptos en <a href="#/facturacion">Facturación</a>; los totales los calcula el servidor (IVA 19%).</p>
@@ -199,6 +257,26 @@ export async function PatientDetailView(root, id) {
       <h2>Vacunaciones</h2>
       ${vaccs ? `<table><thead><tr><th>Vacuna</th><th>Vence</th><th>Estado</th></tr></thead><tbody>${vaccs}</tbody></table>` : `<div class="empty">Sin vacunaciones registradas.</div>`}`;
     const msg = () => root.querySelector('#msg');
+    root.querySelector('#pet-edit').onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      try {
+        await api(`/pets/${id}`, {
+          method: 'PATCH',
+          body: {
+            name: fd.get('name'),
+            breed: fd.get('breed') || null,
+            color: fd.get('color') || null,
+            birthdate: fd.get('birthdate') || null,
+            sex: fd.get('sex') || 'unknown',
+          },
+        });
+        msg().innerHTML = '<div class="alert info">Datos actualizados.</div>';
+        PatientDetailView(root, id);
+      } catch (err) {
+        msg().innerHTML = `<div class="alert error">${err.message}</div>`;
+      }
+    };
     loadAuthPhoto(root.querySelector('#pet-photo'), `/pets/${id}/photo`);
     root.querySelector('#photo').onsubmit = async (e) => {
       e.preventDefault();
@@ -228,6 +306,8 @@ export async function PatientDetailView(root, id) {
             diagnosis: fd.get('diagnosis'),
             treatment: fd.get('treatment') || null,
             allergies: (fd.get('allergies') || '').split(',').map((s) => s.trim()).filter(Boolean),
+            client_summary: fd.get('client_summary') || null,
+            internal_notes: fd.get('internal_notes') || null,
           },
         });
         msg().innerHTML = '<div class="alert info">Ficha guardada y visible en la app móvil del propietario.</div>';
@@ -258,6 +338,147 @@ export async function PatientDetailView(root, id) {
         msg().innerHTML = `<div class="alert error">${err.message}</div>`;
       }
     };
+
+    // ---- Lab exams: attach PDF to a consultation, list + download ----
+    const consultOptions = history.consultations
+      .map((c) => `<option value="${c.id}">#${c.id} · ${new Date(c.created_at).toLocaleDateString('es-CO')} · ${c.diagnosis}</option>`)
+      .join('');
+    root.querySelector('#exam-consult').innerHTML = consultOptions || '<option value="">Sin consultas todavía</option>';
+    root.querySelector('#presc-consult').innerHTML = consultOptions || '<option value="">Sin consultas todavía</option>';
+    root.querySelector('#exam').onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        await api(`/consultations/${e.target.consultation_id.value}/exams`, {
+          method: 'POST',
+          body: new FormData(e.target),
+        });
+        msg().innerHTML = '<div class="alert info">Examen adjuntado y enviado al cliente.</div>';
+        loadExams();
+      } catch (err) {
+        msg().innerHTML = `<div class="alert error">${err.message}</div>`;
+      }
+    };
+    async function loadExams() {
+      const box = root.querySelector('#exam-list');
+      const rows = [];
+      for (const c of history.consultations) {
+        try {
+          const data = await api(`/consultations/${c.id}/exams`);
+          for (const x of data.exams) {
+            rows.push(`<tr><td>#${c.id} · ${c.diagnosis}</td><td>${x.filename}</td><td>${(x.size_bytes / 1024).toFixed(0)} KB</td><td><button class="secondary" data-exam="${x.id}" data-consult="${c.id}">Descargar</button></td></tr>`);
+          }
+        } catch {
+          // no exams for this consultation: skip silently
+        }
+      }
+      box.innerHTML = rows.length ? `<table><thead><tr><th>Consulta</th><th>Archivo</th><th>Tamaño</th><th></th></tr></thead><tbody>${rows.join('')}</tbody></table>` : '<div class="empty">Sin exámenes adjuntos.</div>';
+      box.querySelectorAll('[data-exam]').forEach((b) => {
+        b.onclick = async () => {
+          try {
+            const res = await fetch(`${API_URL}/consultations/${b.dataset.consult}/exams/${b.dataset.exam}`, {
+              headers: { Authorization: `Bearer ${token()}` },
+            });
+            if (!res.ok) throw new Error('No se pudo descargar.');
+            const url = URL.createObjectURL(await res.blob());
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `examen-${b.dataset.consult}-${b.dataset.exam}.pdf`;
+            a.click();
+            URL.revokeObjectURL(url);
+          } catch (err) {
+            msg().innerHTML = `<div class="alert error">${err.message}</div>`;
+          }
+        };
+      });
+    }
+    loadExams();
+
+    // ---- Prescriptions: dynamic item rows, server-computed units ----
+    const prescBox = root.querySelector('#presc-items');
+    function itemRow() {
+      const div = document.createElement('div');
+      div.className = 'inline';
+      div.style.display = 'flex';
+      div.style.gap = '0.4rem';
+      div.style.flexWrap = 'wrap';
+      div.innerHTML = `
+        <input name="medication_name" placeholder="Medicamento" required style="flex:2;min-width:140px" />
+        <select name="form"><option value="tableta">Tableta</option><option value="capsula">Cápsula</option><option value="suero">Suero</option><option value="crema">Crema</option><option value="jarabe">Jarabe</option><option value="gota">Gotas</option><option value="inyectable">Inyectable</option></select>
+        <input name="strength_mg" type="number" step="any" min="0" placeholder="mg" style="width:90px" />
+        <input name="administration" placeholder="Administración (ej. 1 cada 24 h con comida)" required style="flex:2;min-width:180px" />
+        <input name="qty_per_dose" type="number" step="any" min="0" placeholder="Cant./toma" required style="width:100px" />
+        <input name="times_per_day" type="number" min="1" placeholder="Veces/día" required style="width:100px" />
+        <input name="duration_days" type="number" min="1" placeholder="Días" required style="width:80px" />`;
+      return div;
+    }
+    prescBox.appendChild(itemRow());
+    root.querySelector('#presc-add').onclick = () => prescBox.appendChild(itemRow());
+    root.querySelector('#presc-save').onclick = async () => {
+      const meta = new FormData(root.querySelector('#presc-meta'));
+      const items = [...prescBox.children].map((row) => {
+        const g = (n) => row.querySelector(`[name=${n}]`).value;
+        return {
+          medication_name: g('medication_name'),
+          form: g('form'),
+          strength_mg: g('strength_mg') ? Number(g('strength_mg')) : null,
+          administration: g('administration'),
+          qty_per_dose: Number(g('qty_per_dose')),
+          times_per_day: Number(g('times_per_day')),
+          duration_days: Number(g('duration_days')),
+        };
+      });
+      try {
+        const r = await api(`/consultations/${meta.get('consultation_id')}/prescription`, {
+          method: 'POST',
+          body: {
+            recommendations: meta.get('recommendations') || null,
+            warning_signs: meta.get('warning_signs') || null,
+            recheck: meta.get('recheck') || null,
+            items,
+          },
+        });
+        msg().innerHTML = '<div class="alert info">Receta emitida.</div>';
+        renderPrescription(r.prescription, meta.get('consultation_id'));
+      } catch (err) {
+        msg().innerHTML = `<div class="alert error">${err.message}</div>`;
+      }
+    };
+    async function renderPrescription(p, consultationId) {
+      if (!p) {
+        try {
+          const data = await api(`/consultations/${consultationId}/prescription`);
+          p = data.prescription;
+        } catch {
+          root.querySelector('#presc-view').innerHTML = '<div class="empty">Esta consulta aún no tiene receta.</div>';
+          return;
+        }
+      }
+      const rows = p.items
+        .map(
+          (it) =>
+            `<tr><td><strong>${roman(it.item_no)}</strong></td><td>${it.medication_name} (${it.form})${it.strength_mg ? ` ${it.strength_mg} mg` : ''}<br/><small>${it.administration}</small></td><td>#${it.total_units}</td></tr>`,
+        )
+        .join('');
+      root.querySelector('#presc-view').innerHTML = `
+        <div class="receipt">
+          <div class="receipt-head"><div><div class="receipt-title">RECETA MÉDICA</div>
+            <div>Emitida: ${new Date(p.created_at).toLocaleDateString('es-CO')}</div></div></div>
+          <div class="receipt-meta">
+            <span><strong>Paciente:</strong> ${p.pet_name} (${p.species}${p.breed ? ` · ${p.breed}` : ''})</span>
+            <span><strong>Sexo:</strong> ${p.sex === 'male' ? 'Macho' : p.sex === 'female' ? 'Hembra' : '—'}</span>
+            <span><strong>Peso:</strong> ${p.weight_kg ?? '—'} kg</span>
+            <span><strong>Propietario:</strong> ${p.owner_name}</span>
+          </div>
+          <table><thead><tr><th>Nº</th><th>Medicamento y administración</th><th>Unidades</th></tr></thead><tbody>${rows}</tbody></table>
+          ${p.recommendations ? `<p><strong>Recomendaciones:</strong> ${p.recommendations}</p>` : ''}
+          ${p.warning_signs ? `<p><strong>Signos de alerta:</strong> ${p.warning_signs}</p>` : ''}
+          ${p.recheck ? `<p><strong>Revisión:</strong> ${p.recheck}</p>` : ''}
+          <p><strong>Firma:</strong> ${p.vet_name} · MP ${p.vet_professional_id || '—'}</p>
+        </div>`;
+    }
+    // Show the selected consultation's prescription when it changes.
+    root.querySelector('#presc-consult').onchange = (e) => renderPrescription(null, e.target.value);
+    if (history.consultations.length) renderPrescription(null, history.consultations[0].id);
   } catch (e) {
     root.innerHTML = `<h1>Ficha clínica</h1><div class="alert error">No se pudo cargar la ficha: ${e.message}</div>`;
   }
