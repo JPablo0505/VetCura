@@ -52,13 +52,27 @@ Errors: `{ error: { code, message } }` with 400 validation_error,
   scheduled→checked_in|cancelled|no_show,
   checked_in→done|cancelled|no_show (terminal otherwise).
 
-## Clinical
+## Clinical (trial visibility split: owners see summary, staff see all)
+
+- `POST /consultations` (admin/vet; +`internal_notes`, +`client_summary`
+  defaulting to a generic line) · `GET /pets/:id/history` (role-based
+  fields) · `GET /pets/:id/weight-history` ·
+  `GET /pets/:id/measurements` (append-only timeline).
+- `POST /consultations/:id/prescription` (admin/vet; one per
+  consultation; `total_units` server-computed; 409 on duplicate) ·
+  `GET /consultations/:id/prescription` (own pet or staff; includes
+  header context + vet `MP` professional id).
+- `POST /consultations/:id/exams` (staff; PDF-only ≤ 10 MB,
+  magic-byte checked) · `GET .../exams` (list, owner-scoped) ·
+  `GET .../exams/:id` (download, auth + ownership).
 
 - `POST /consultations {appointment_id?, pet_id, weight_kg?,
-  diagnosis, treatment?, notes?, allergies[]}` (admin/vet; unique
-  appointment; syncs pet weight).
-- `GET /pets/:id/history` → `{consultations[] (with allergies,
-  vet_name, newest first), vaccinations[]}`.
+  diagnosis, treatment?, notes?, internal_notes?, client_summary?,
+  allergies[]}` (admin/vet; unique appointment; syncs pet weight +
+  measurement mirror; notifies owner minimally).
+- `GET /pets/:id/history` → staff: full record (diagnosis, internal
+  notes, allergies, vet_name, newest first); owner: summary-only
+  (`client_summary`, weight, allergies) + vaccinations.
 - `GET /pets/:id/weight-history` → `{history: [{date, weight_kg}]}`.
 - `POST /vaccinations {pet_id, vaccine, due_date, given_date?}`
   (staff; given_date not in future) · `PATCH /vaccinations/:id`.
