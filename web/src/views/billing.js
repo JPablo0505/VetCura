@@ -37,7 +37,7 @@ export async function BillingView(root) {
         <button>Añadir</button>
       </form>
       <div id="msg"></div>
-      <div id="preview"></div>`;
+      <div id="print-area"><div id="preview"></div></div>`;
     const msg = () => root.querySelector('#msg');
     root.querySelectorAll('button[data-view]').forEach((b) => {
       b.onclick = async () => {

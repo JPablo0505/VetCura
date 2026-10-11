@@ -149,10 +149,13 @@ button:disabled { opacity: 0.55; cursor: default; }
 .receipt-totals .grand { font-size: 1.25rem; }
 .receipt .thanks { text-align: center; color: var(--muted); margin-top: 1rem; }
 @media print {
-  .sidebar, .topbar, form.inline, button, .view-tabs, #msg { display: none !important; }
+  .sidebar, .topbar { display: none !important; }
   body { background: #fff; }
   .content { padding: 0; max-width: none; }
+  .content > :not(#print-area) { display: none !important; }
+  #print-area button { display: none !important; }
   .receipt { border: 0; margin: 0; max-width: none; }
+  .receipt table { box-shadow: none; }
 }
 .login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem 1rem; background: radial-gradient(circle at 50% 0%, #eef4f3 0%, var(--bg) 60%); }
 .login-card { width: 100%; max-width: 400px; text-align: center; }
