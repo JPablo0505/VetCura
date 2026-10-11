@@ -67,7 +67,8 @@ export async function BillingView(root) {
                 <span><strong>Mascota:</strong> ${inv.pet_name || ''}</span>
                 <span><strong>Fecha:</strong> ${inv.issued_at ? new Date(inv.issued_at).toLocaleDateString('es-CO') : '—'}</span>
                 <span><strong>Estado:</strong> ${STATUS_LABEL[inv.status] || inv.status}</span>
-                ${inv.status === 'paid' ? `<span><strong>Pagada:</strong> ${inv.payment_method || ''} ${inv.paid_at ? new Date(inv.paid_at).toLocaleString('es-CO') : ''}</span>` : ''}
+                ${inv.vet_name ? `<span><strong>Atendido por:</strong> ${inv.vet_name}</span>` : ''}
+                ${inv.status === 'paid' ? `<span><strong>Método:</strong> ${inv.payment_method || ''} ${inv.paid_at ? new Date(inv.paid_at).toLocaleString('es-CO') : ''}</span>` : ''}
               </div>
               <table><thead><tr><th>Descripción</th><th>Cant.</th><th>Precio unit.</th><th>Subtotal</th></tr></thead><tbody>${items || '<tr><td colspan="4">Sin conceptos.</td></tr>'}</tbody></table>
               <div class="receipt-totals">
