@@ -1,4 +1,34 @@
-# Delivery Record (v0.1.0)
+# VetCura Delivery Record
+
+## Current state (2026-11-24)
+
+- Branch `master`, clean tree. Last two features landed and are
+  recorded in their ODD tasks: availability (vet schedules + slot
+  booking, migration v3, `odd/tasks/vetcura-availability.md`) and
+  clinical-plus (exam PDFs, owner/staff visibility split,
+  prescriptions with professional id, pet color/sex, migrations v5-v6,
+  `odd/tasks/vetcura-clinical-plus.md`).
+- Backend suite re-run on this exact tree: **85/85 pass** (`npm test`,
+  observed 2026-11-24). Web `npm run build` OK and `assembleDebug`
+  BUILD SUCCESSFUL at the clinical-plus commit (evidence in the task
+  files above).
+
+### Pending — external, needs user action (nothing code-side blocks)
+
+1. **Google Sign-In real e2e**: create OAuth clients in Google Cloud
+   (Android SHA-1 + web audience) → backend env + `-PgoogleClientId`
+   rebuild → run checks 1-5 of `docs/OAUTH.md`.
+2. **Firebase project + `google-services.json`** → wire FCM token
+   registration (code stays absent until then, by design).
+3. **SMTP credentials** → first live mail delivery test (items stay
+   `pending`, never fake-sent).
+4. **Real Figma URL + access** → pixel-fidelity pass (mockups remain
+   provisional visual truth).
+
+### Pending — optional hardening (not defects)
+
+5. Login rate-limit tuning.
+6. Postgres migration path.
 
 ## v0.2.0 — Profile, Google, Security, Notifications (this phase)
 
